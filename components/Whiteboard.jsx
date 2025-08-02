@@ -16,6 +16,9 @@ import {
 
 export default function Whiteboard() {
   const canvasRef = useRef(null);
+  const historyRef = useRef([]);
+  const historyIndexRef = useRef(-1);
+
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentColor, setCurrentColor] = useState("#000000");
   const [brushSize, setBrushSize] = useState(2);
@@ -27,6 +30,12 @@ export default function Whiteboard() {
   const [connectedUsers, setConnectedUsers] = useState(0);
   const [startPos, setStartPos] = useState(null);
   const [isShapeDrawing, setIsShapeDrawing] = useState(false);
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    historyRef.current = history;
+    historyIndexRef.current = historyIndex;
+  }, [history, historyIndex]);
 
   const colors = [
     "#000000",
@@ -87,12 +96,14 @@ export default function Whiteboard() {
     const canvas = canvasRef.current;
     if (canvas) {
       const imageData = canvas.toDataURL();
-      const newHistory = history.slice(0, historyIndex + 1);
-      newHistory.push(imageData);
-      setHistory(newHistory);
-      setHistoryIndex(newHistory.length - 1);
+      setHistory((prev) => {
+        const newHistory = prev.slice(0, historyIndexRef.current + 1);
+        newHistory.push(imageData);
+        return newHistory;
+      });
+      setHistoryIndex((prev) => prev + 1);
     }
-  }, [history, historyIndex]);
+  }, []); // No dependencies to prevent infinite loops
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -150,7 +161,7 @@ export default function Whiteboard() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [historyIndex, history.length]);
+  }, []); // Remove dependencies to prevent re-registering event listeners
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -167,9 +178,6 @@ export default function Whiteboard() {
         ctx.lineJoin = "round";
         ctx.fillStyle = "white";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // Save initial state
-        saveCanvasState();
       };
 
       resizeCanvas();
@@ -177,7 +185,17 @@ export default function Whiteboard() {
 
       return () => window.removeEventListener("resize", resizeCanvas);
     }
-  }, [saveCanvasState]);
+  }, []); // Empty dependency array to run only once
+
+  // Save initial canvas state after component mounts
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (canvas && history.length === 0) {
+      const imageData = canvas.toDataURL();
+      setHistory([imageData]);
+      setHistoryIndex(0);
+    }
+  }, []); // Run only once on mount
 
   const getMousePos = (e) => {
     const canvas = canvasRef.current;
@@ -361,8 +379,8 @@ export default function Whiteboard() {
     ctx.setLineDash([]); // Reset line dash
   };
 
-  const redrawCanvas = () => {
-    if (history.length > 0 && historyIndex >= 0) {
+  const redrawCanvas = useCallback(() => {
+    if (historyRef.current.length > 0 && historyIndexRef.current >= 0) {
       const canvas = canvasRef.current;
       const ctx = canvas.getContext("2d");
       const img = new Image();
@@ -370,9 +388,9 @@ export default function Whiteboard() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0);
       };
-      img.src = history[historyIndex];
+      img.src = historyRef.current[historyIndexRef.current];
     }
-  };
+  }, []);
 
   const clearCanvas = () => {
     const canvas = canvasRef.current;
@@ -390,9 +408,10 @@ export default function Whiteboard() {
     }
   };
 
-  const undo = () => {
-    if (historyIndex > 0) {
-      setHistoryIndex(historyIndex - 1);
+  const undo = useCallback(() => {
+    if (historyIndexRef.current > 0) {
+      const newIndex = historyIndexRef.current - 1;
+      setHistoryIndex(newIndex);
       const canvas = canvasRef.current;
       const ctx = canvas.getContext("2d");
       const img = new Image();
@@ -400,13 +419,14 @@ export default function Whiteboard() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0);
       };
-      img.src = history[historyIndex - 1];
+      img.src = historyRef.current[newIndex];
     }
-  };
+  }, []);
 
-  const redo = () => {
-    if (historyIndex < history.length - 1) {
-      setHistoryIndex(historyIndex + 1);
+  const redo = useCallback(() => {
+    if (historyIndexRef.current < historyRef.current.length - 1) {
+      const newIndex = historyIndexRef.current + 1;
+      setHistoryIndex(newIndex);
       const canvas = canvasRef.current;
       const ctx = canvas.getContext("2d");
       const img = new Image();
@@ -414,9 +434,9 @@ export default function Whiteboard() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0);
       };
-      img.src = history[historyIndex + 1];
+      img.src = historyRef.current[newIndex];
     }
-  };
+  }, []);
 
   const saveCanvas = () => {
     const canvas = canvasRef.current;
@@ -612,3 +632,4 @@ export default function Whiteboard() {
     </div>
   );
 }
+
