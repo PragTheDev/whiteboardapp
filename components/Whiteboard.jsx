@@ -12,6 +12,13 @@ import {
   Redo,
   Save,
   Users,
+  Minus,
+  Plus,
+  RotateCcw,
+  Upload,
+  Eye,
+  EyeOff,
+  Settings,
 } from "lucide-react";
 
 export default function Whiteboard() {
@@ -31,6 +38,11 @@ export default function Whiteboard() {
   const [startPos, setStartPos] = useState(null);
   const [showSaveNotification, setShowSaveNotification] = useState(false);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [customColor, setCustomColor] = useState("#000000");
+  const [isGridVisible, setIsGridVisible] = useState(false);
+  const [canvasBackground, setCanvasBackground] = useState("#FFFFFF");
+  const [showSettings, setShowSettings] = useState(false);
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -55,6 +67,14 @@ export default function Whiteboard() {
     "#32CD32",
     "#FFD700",
     "#FF4500",
+    "#8B4513",
+    "#FF1493",
+    "#00CED1",
+    "#9370DB",
+    "#20B2AA",
+    "#DC143C",
+    "#4169E1",
+    "#228B22",
   ];
 
   const tools = [
@@ -105,6 +125,34 @@ export default function Whiteboard() {
       setHistoryIndex((prev) => prev + 1);
     }
   }, []); // No dependencies to prevent infinite loops
+
+  // Close color picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showColorPicker && !event.target.closest(".color-picker-container")) {
+        setShowColorPicker(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showColorPicker]);
+
+  // Update canvas background when changed
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (canvas && isCanvasReady) {
+      const ctx = canvas.getContext("2d");
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = canvasBackground;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.putImageData(imageData, 0, 0);
+
+      if (isGridVisible) {
+        drawGrid(ctx, canvas.width, canvas.height);
+      }
+    }
+  }, [canvasBackground, isGridVisible, isCanvasReady]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -177,8 +225,13 @@ export default function Whiteboard() {
         const ctx = canvas.getContext("2d");
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
-        ctx.fillStyle = "white";
+        ctx.fillStyle = canvasBackground;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw grid if enabled
+        if (isGridVisible) {
+          drawGrid(ctx, canvas.width, canvas.height);
+        }
 
         setIsCanvasReady(true);
       };
@@ -348,7 +401,7 @@ export default function Whiteboard() {
 
     // Save current context state
     ctx.save();
-    
+
     ctx.globalCompositeOperation = "source-over";
     ctx.strokeStyle = currentColor;
     ctx.lineWidth = brushSize;
@@ -412,8 +465,103 @@ export default function Whiteboard() {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "white";
+    ctx.fillStyle = canvasBackground;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Redraw grid if enabled
+    if (isGridVisible) {
+      drawGrid(ctx, canvas.width, canvas.height);
+    }
+
+    saveCanvasState();
+  };
+
+  const drawGrid = (ctx, width, height) => {
+    const gridSize = 20;
+    ctx.save();
+    ctx.strokeStyle = "#E5E7EB";
+    ctx.lineWidth = 0.5;
+    ctx.setLineDash([]);
+
+    // Vertical lines
+    for (let x = 0; x <= width; x += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
+
+    // Horizontal lines
+    for (let y = 0; y <= height; y += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  };
+
+  const loadImageToCanvas = (file) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext("2d");
+
+        // Clear canvas first
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = canvasBackground;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw grid if enabled
+        if (isGridVisible) {
+          drawGrid(ctx, canvas.width, canvas.height);
+        }
+
+        // Calculate aspect ratio and draw image
+        const aspectRatio = img.width / img.height;
+        let drawWidth = canvas.width;
+        let drawHeight = canvas.width / aspectRatio;
+
+        if (drawHeight > canvas.height) {
+          drawHeight = canvas.height;
+          drawWidth = canvas.height * aspectRatio;
+        }
+
+        const x = (canvas.width - drawWidth) / 2;
+        const y = (canvas.height - drawHeight) / 2;
+
+        ctx.drawImage(img, x, y, drawWidth, drawHeight);
+        saveCanvasState();
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file && file.type.startsWith("image/")) {
+      loadImageToCanvas(file);
+    }
+  };
+
+  const resetCanvas = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = canvasBackground;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (isGridVisible) {
+      drawGrid(ctx, canvas.width, canvas.height);
+    }
+
+    // Reset history
+    setHistory([]);
+    setHistoryIndex(-1);
     saveCanvasState();
   };
 
@@ -580,6 +728,61 @@ export default function Whiteboard() {
                   <Button
                     variant="ghost"
                     size="sm"
+                    onClick={() => setIsGridVisible(!isGridVisible)}
+                    className={`flex items-center gap-2 hover:bg-white hover:shadow-sm transition-all duration-200 ${
+                      isGridVisible ? "bg-blue-50 text-blue-600" : ""
+                    }`}
+                    title="Toggle Grid"
+                  >
+                    {isGridVisible ? (
+                      <Eye className="w-4 h-4" />
+                    ) : (
+                      <EyeOff className="w-4 h-4" />
+                    )}
+                    <span className="hidden sm:inline">Grid</span>
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowSettings(!showSettings)}
+                    className="flex items-center gap-2 hover:bg-white hover:shadow-sm transition-all duration-200"
+                    title="Settings"
+                  >
+                    <Settings className="w-4 h-4" />
+                    <span className="hidden sm:inline">Settings</span>
+                  </Button>
+
+                  <label className="flex items-center gap-2 px-3 py-2 hover:bg-white hover:shadow-sm transition-all duration-200 cursor-pointer rounded-md">
+                    <Upload className="w-4 h-4" />
+                    <span className="hidden sm:inline">Upload</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
+                  </label>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={resetCanvas}
+                    className="flex items-center gap-2 hover:bg-orange-50 hover:text-orange-600 hover:shadow-sm transition-all duration-200"
+                    title="Reset Canvas"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    <span className="hidden sm:inline">Reset</span>
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="w-px h-6 bg-gray-300"></div>
+                <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={handleClearCanvas}
                     className="flex items-center gap-2 hover:bg-red-50 hover:text-red-600 hover:shadow-sm transition-all duration-200"
                     title="Clear Canvas"
@@ -609,23 +812,75 @@ export default function Whiteboard() {
                   <Palette className="w-4 h-4" />
                   Colors:
                 </span>
-                <div className="flex gap-1 p-2 bg-gray-100 rounded-lg">
-                  {colors.map((color) => (
+                <div className="relative color-picker-container">
+                  <div className="flex gap-1 p-2 bg-gray-100 rounded-lg">
+                    {colors.map((color) => (
+                      <button
+                        key={color}
+                        className={`w-8 h-8 rounded-lg border-2 transition-all duration-200 hover:scale-110 hover:shadow-md ${
+                          currentColor === color
+                            ? "border-gray-800 scale-110 shadow-md ring-2 ring-blue-200"
+                            : "border-gray-300 hover:border-gray-400"
+                        }`}
+                        style={{ backgroundColor: color }}
+                        onClick={() => {
+                          setCurrentColor(color);
+                          setCustomColor(color);
+                          if (tool === "eraser") setTool("pen");
+                        }}
+                        title={`Color: ${color}`}
+                      />
+                    ))}
+
+                    {/* Custom Color Picker Button */}
                     <button
-                      key={color}
-                      className={`w-8 h-8 rounded-lg border-2 transition-all duration-200 hover:scale-110 hover:shadow-md ${
-                        currentColor === color
-                          ? "border-gray-800 scale-110 shadow-md ring-2 ring-blue-200"
-                          : "border-gray-300 hover:border-gray-400"
-                      }`}
-                      style={{ backgroundColor: color }}
-                      onClick={() => {
-                        setCurrentColor(color);
-                        if (tool === "eraser") setTool("pen");
-                      }}
-                      title={`Color: ${color}`}
-                    />
-                  ))}
+                      className="w-8 h-8 rounded-lg border-2 border-dashed border-gray-400 flex items-center justify-center hover:border-gray-600 transition-all duration-200"
+                      onClick={() => setShowColorPicker(!showColorPicker)}
+                      title="Custom Color"
+                    >
+                      <Plus className="w-4 h-4 text-gray-600" />
+                    </button>
+                  </div>
+
+                  {/* Custom Color Picker Modal */}
+                  {showColorPicker && (
+                    <div className="absolute top-12 left-0 z-50 bg-white rounded-lg shadow-xl border border-gray-200 p-4">
+                      <div className="space-y-3">
+                        <div className="text-sm font-medium text-gray-700">
+                          Custom Color
+                        </div>
+                        <input
+                          type="color"
+                          value={customColor}
+                          onChange={(e) => {
+                            setCustomColor(e.target.value);
+                            setCurrentColor(e.target.value);
+                            if (tool === "eraser") setTool("pen");
+                          }}
+                          className="w-16 h-16 rounded-lg border-2 border-gray-300 cursor-pointer"
+                        />
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={customColor}
+                            onChange={(e) => {
+                              setCustomColor(e.target.value);
+                              setCurrentColor(e.target.value);
+                            }}
+                            className="px-2 py-1 text-xs border border-gray-300 rounded w-20"
+                            placeholder="#000000"
+                          />
+                          <Button
+                            size="sm"
+                            onClick={() => setShowColorPicker(false)}
+                            className="text-xs"
+                          >
+                            Done
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -635,6 +890,13 @@ export default function Whiteboard() {
                   Brush Size:
                 </span>
                 <div className="flex items-center gap-3 p-2 bg-gray-100 rounded-lg">
+                  <button
+                    onClick={() => setBrushSize(Math.max(1, brushSize - 1))}
+                    className="w-6 h-6 flex items-center justify-center bg-white rounded border border-gray-300 hover:bg-gray-50 transition-colors"
+                  >
+                    <Minus className="w-3 h-3" />
+                  </button>
+
                   <input
                     type="range"
                     min="1"
@@ -648,6 +910,14 @@ export default function Whiteboard() {
                       }%, #e5e7eb ${(brushSize / 50) * 100}%, #e5e7eb 100%)`,
                     }}
                   />
+
+                  <button
+                    onClick={() => setBrushSize(Math.min(50, brushSize + 1))}
+                    className="w-6 h-6 flex items-center justify-center bg-white rounded border border-gray-300 hover:bg-gray-50 transition-colors"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+
                   <div className="flex items-center gap-2 min-w-[60px]">
                     <div
                       className="bg-gray-800 rounded-full"
@@ -663,6 +933,37 @@ export default function Whiteboard() {
                 </div>
               </div>
             </div>
+
+            {/* Settings Panel */}
+            {showSettings && (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
+                <h3 className="text-sm font-semibold text-gray-700">
+                  Canvas Settings
+                </h3>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-600">Background:</label>
+                    <input
+                      type="color"
+                      value={canvasBackground}
+                      onChange={(e) => setCanvasBackground(e.target.value)}
+                      className="w-8 h-8 rounded border border-gray-300 cursor-pointer"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={isGridVisible}
+                        onChange={(e) => setIsGridVisible(e.target.checked)}
+                        className="mr-1"
+                      />
+                      Show Grid
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -670,9 +971,10 @@ export default function Whiteboard() {
       {/* Canvas Area */}
       <div className="flex-1 p-6 min-h-0">
         <div
-          className={`relative h-full bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden transition-all duration-300 ${
+          className={`relative h-full rounded-2xl shadow-lg border border-gray-200 overflow-hidden transition-all duration-300 ${
             !isCanvasReady ? "canvas-loading" : ""
           }`}
+          style={{ backgroundColor: canvasBackground }}
         >
           {/* Canvas */}
           <canvas
@@ -794,7 +1096,6 @@ export default function Whiteboard() {
               <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">
                 Ctrl+S
               </kbd>{" "}
-              Save
             </span>
           </div>
         </div>
