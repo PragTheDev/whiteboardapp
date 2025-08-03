@@ -43,6 +43,7 @@ export default function Whiteboard() {
   const [isGridVisible, setIsGridVisible] = useState(false);
   const [canvasBackground, setCanvasBackground] = useState("#FFFFFF");
   const [showSettings, setShowSettings] = useState(false);
+  const previewCanvasRef = useRef(null);
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -214,13 +215,22 @@ export default function Whiteboard() {
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    const previewCanvas = previewCanvasRef.current;
 
-    if (canvas) {
+    if (canvas && previewCanvas) {
       // Make canvas responsive
       const resizeCanvas = () => {
         const container = canvas.parentElement;
-        canvas.width = container.offsetWidth - 20;
-        canvas.height = container.offsetHeight - 20;
+        const width = container.offsetWidth - 20;
+        const height = container.offsetHeight - 20;
+        
+        // Resize main canvas
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Resize preview canvas to match
+        previewCanvas.width = width;
+        previewCanvas.height = height;
 
         const ctx = canvas.getContext("2d");
         ctx.lineCap = "round";
@@ -304,8 +314,10 @@ export default function Whiteboard() {
       if (socket) {
         socket.emit("drawing", drawingData);
       }
+    } else if (startPos) {
+      // For shapes, draw preview
+      drawShapePreview(startPos, pos);
     }
-    // For shapes, we don't draw anything during dragging - just wait for mouse up
   };
 
   const stopDrawing = (e) => {
@@ -321,6 +333,14 @@ export default function Whiteboard() {
     } else if (startPos) {
       // Complete shape drawing
       const pos = getMousePos(e);
+      
+      // Clear preview canvas
+      const previewCanvas = previewCanvasRef.current;
+      if (previewCanvas) {
+        const previewCtx = previewCanvas.getContext("2d");
+        previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+      }
+      
       const shapeData = {
         type: "shape",
         tool: tool,
@@ -397,44 +417,49 @@ export default function Whiteboard() {
 
   const drawShapePreview = (start, end) => {
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
+    const previewCanvas = previewCanvasRef.current;
+    
+    if (!canvas || !previewCanvas) return;
 
-    // Save current context state
-    ctx.save();
-
-    ctx.globalCompositeOperation = "source-over";
-    ctx.strokeStyle = currentColor;
-    ctx.lineWidth = brushSize;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.setLineDash([5, 5]); // Dashed line for preview
+    const previewCtx = previewCanvas.getContext("2d");
+    
+    // Clear preview canvas
+    previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+    
+    // Set preview style
+    previewCtx.globalCompositeOperation = "source-over";
+    previewCtx.strokeStyle = currentColor;
+    previewCtx.lineWidth = brushSize;
+    previewCtx.lineCap = "round";
+    previewCtx.lineJoin = "round";
+    previewCtx.setLineDash([5, 5]); // Dashed line for preview
 
     const width = end.x - start.x;
     const height = end.y - start.y;
 
-    ctx.beginPath();
+    previewCtx.beginPath();
 
     switch (tool) {
       case "line":
-        ctx.moveTo(start.x, start.y);
-        ctx.lineTo(end.x, end.y);
-        ctx.stroke();
+        previewCtx.moveTo(start.x, start.y);
+        previewCtx.lineTo(end.x, end.y);
+        previewCtx.stroke();
         break;
       case "rectangle":
-        ctx.rect(start.x, start.y, width, height);
-        ctx.stroke();
+        previewCtx.rect(start.x, start.y, width, height);
+        previewCtx.stroke();
         break;
       case "circle":
         const radius = Math.sqrt(width * width + height * height) / 2;
         const centerX = start.x + width / 2;
         const centerY = start.y + height / 2;
-        ctx.arc(centerX, centerY, Math.abs(radius), 0, 2 * Math.PI);
-        ctx.stroke();
+        previewCtx.arc(centerX, centerY, Math.abs(radius), 0, 2 * Math.PI);
+        previewCtx.stroke();
         break;
     }
 
-    // Restore context state
-    ctx.restore();
+    // Reset line dash
+    previewCtx.setLineDash([]);
   };
 
   const redrawCanvas = useCallback(() => {
@@ -989,10 +1014,25 @@ export default function Whiteboard() {
             onMouseDown={startDrawing}
             onMouseMove={draw}
             onMouseUp={stopDrawing}
-            onMouseLeave={stopDrawing}
+            onMouseLeave={(e) => {
+              // Clear preview when leaving canvas
+              const previewCanvas = previewCanvasRef.current;
+              if (previewCanvas && startPos) {
+                const previewCtx = previewCanvas.getContext("2d");
+                previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+              }
+              stopDrawing(e);
+            }}
             onTouchStart={startDrawing}
             onTouchMove={draw}
             onTouchEnd={stopDrawing}
+          />
+
+          {/* Preview Canvas for Shape Drawing */}
+          <canvas
+            ref={previewCanvasRef}
+            className="absolute top-0 left-0 w-full h-full pointer-events-none"
+            style={{ zIndex: 1 }}
           />
 
           {/* Canvas Loading State */}
@@ -1096,6 +1136,7 @@ export default function Whiteboard() {
               <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">
                 Ctrl+S
               </kbd>{" "}
+              Save
             </span>
           </div>
         </div>
