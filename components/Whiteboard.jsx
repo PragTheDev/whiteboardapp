@@ -124,7 +124,7 @@ export default function Whiteboard() {
     if (canvas) {
       const imageData = canvas.toDataURL();
       const timestamp = new Date();
-      
+
       // Create action history entry
       const historyEntry = {
         id: Date.now() + Math.random(),
@@ -139,13 +139,13 @@ export default function Whiteboard() {
         newHistory.push(imageData);
         return newHistory;
       });
-      
+
       setActionHistory((prev) => {
         const newActionHistory = prev.slice(0, historyIndexRef.current + 1);
         newActionHistory.push(historyEntry);
         return newActionHistory;
       });
-      
+
       setHistoryIndex((prev) => prev + 1);
     }
   }, []); // No dependencies to prevent infinite loops
@@ -370,7 +370,11 @@ export default function Whiteboard() {
       const ctx = canvas.getContext("2d");
       ctx.beginPath();
       const actionType = tool === "pen" ? "draw" : "erase";
-      saveCanvasState(actionType, { tool, color: currentColor, size: brushSize });
+      saveCanvasState(actionType, {
+        tool,
+        color: currentColor,
+        size: brushSize,
+      });
     } else if (startPos) {
       // Complete shape drawing
       const pos = getMousePos(e);
@@ -398,7 +402,13 @@ export default function Whiteboard() {
       }
 
       setStartPos(null);
-      saveCanvasState("shape", { tool, color: currentColor, size: brushSize, startPos, endPos: pos });
+      saveCanvasState("shape", {
+        tool,
+        color: currentColor,
+        size: brushSize,
+        startPos,
+        endPos: pos,
+      });
     }
   };
 
@@ -600,7 +610,10 @@ export default function Whiteboard() {
         const y = (canvas.height - drawHeight) / 2;
 
         ctx.drawImage(img, x, y, drawWidth, drawHeight);
-        saveCanvasState("upload", { fileName: file.name, dimensions: { width: drawWidth, height: drawHeight } });
+        saveCanvasState("upload", {
+          fileName: file.name,
+          dimensions: { width: drawWidth, height: drawHeight },
+        });
       };
       img.src = e.target.result;
     };
@@ -658,13 +671,20 @@ export default function Whiteboard() {
   // Get action icon based on type
   const getActionIcon = (type) => {
     switch (type) {
-      case "draw": return "✏️";
-      case "erase": return "🧽";
-      case "shape": return "🔷";
-      case "clear": return "🗑️";
-      case "upload": return "📁";
-      case "reset": return "🔄";
-      default: return "📝";
+      case "draw":
+        return "✏️";
+      case "erase":
+        return "🧽";
+      case "shape":
+        return "🔷";
+      case "clear":
+        return "🗑️";
+      case "upload":
+        return "📁";
+      case "reset":
+        return "🔄";
+      default:
+        return "📝";
     }
   };
 
@@ -689,40 +709,48 @@ export default function Whiteboard() {
   };
 
   // Restore canvas to specific history point
-  const restoreToHistoryPoint = useCallback((historyId) => {
-    const actionIndex = actionHistory.findIndex(action => action.id === historyId);
-    if (actionIndex === -1) return;
-    
-    const action = actionHistory[actionIndex];
-    if (action.imageData) {
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-      
-      // Clear canvas
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // Restore canvas state
-      const img = new Image();
-      img.onload = () => {
-        ctx.drawImage(img, 0, 0);
-        
-        // Update canvas history for undo/redo
-        const newHistory = [...history.slice(0, historyIndex + 1), action.imageData];
-        setHistory(newHistory);
-        setHistoryIndex(newHistory.length - 1);
-        
-        // Broadcast the restored state to other users
-        if (socket) {
-          socket.emit('canvas-cleared');
-          socket.emit('canvas-restored', action.imageData);
-        }
-      };
-      img.src = action.imageData;
-      
-      // Close history panel
-      setShowHistory(false);
-    }
-  }, [actionHistory, history, historyIndex, socket]);
+  const restoreToHistoryPoint = useCallback(
+    (historyId) => {
+      const actionIndex = actionHistory.findIndex(
+        (action) => action.id === historyId
+      );
+      if (actionIndex === -1) return;
+
+      const action = actionHistory[actionIndex];
+      if (action.imageData) {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext("2d");
+
+        // Clear canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Restore canvas state
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0);
+
+          // Update canvas history for undo/redo
+          const newHistory = [
+            ...history.slice(0, historyIndex + 1),
+            action.imageData,
+          ];
+          setHistory(newHistory);
+          setHistoryIndex(newHistory.length - 1);
+
+          // Broadcast the restored state to other users
+          if (socket) {
+            socket.emit("canvas-cleared");
+            socket.emit("canvas-restored", action.imageData);
+          }
+        };
+        img.src = action.imageData;
+
+        // Close history panel
+        setShowHistory(false);
+      }
+    },
+    [actionHistory, history, historyIndex, socket]
+  );
 
   const undo = useCallback(() => {
     if (historyIndexRef.current > 0) {
@@ -1007,7 +1035,10 @@ export default function Whiteboard() {
 
                   {/* Custom Color Picker Modal */}
                   {showColorPicker && (
-                    <div className="absolute top-12 left-0 z-50 bg-white rounded-lg shadow-xl border border-gray-200 p-4">
+                    <div
+                      className="absolute top-12 left-0 bg-white rounded-lg shadow-xl border border-gray-200 p-4 color-picker-panel"
+                      style={{ zIndex: 1000 }}
+                    >
                       <div className="space-y-3">
                         <div className="text-sm font-medium text-gray-700">
                           Custom Color
@@ -1121,64 +1152,7 @@ export default function Whiteboard() {
               </div>
             </div>
 
-            {/* History Panel */}
-        {showHistory && (
-          <div className="absolute top-20 right-4 bg-white rounded-xl shadow-lg border border-gray-200 p-4 w-80 max-h-96 overflow-y-auto z-30">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-gray-800 flex items-center gap-2">
-                <History className="w-4 h-4" />
-                Action History
-              </h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowHistory(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-            
-            {actionHistory.length === 0 ? (
-              <p className="text-gray-500 text-sm text-center py-4">No actions yet</p>
-            ) : (
-              <div className="space-y-2">
-                {actionHistory.slice().reverse().map((action, index) => (
-                  <div 
-                    key={action.id} 
-                    className="history-item flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg group cursor-pointer"
-                    onClick={() => restoreToHistoryPoint(action.id)}
-                    title="Click to restore to this point"
-                  >
-                    <div className="flex items-center gap-2">
-                      {getActionIcon(action.type)}
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">
-                          {getActionDescription(action)}
-                        </p>
-                        <p className="text-xs text-gray-500 flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {formatTimestamp(action.timestamp)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-xs px-2 py-1 h-auto"
-                      >
-                        Restore
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Settings Panel */}
+            {/* Settings Panel */}
             {showSettings && (
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
                 <h3 className="text-sm font-semibold text-gray-700">
@@ -1215,10 +1189,10 @@ export default function Whiteboard() {
       {/* Canvas Area */}
       <div className="flex-1 p-6 min-h-0">
         <div
-          className={`relative h-full rounded-2xl shadow-lg border border-gray-200 overflow-hidden transition-all duration-300 ${
+          className={`relative h-full rounded-2xl shadow-lg border border-gray-200 overflow-hidden transition-all duration-300 canvas-container ${
             !isCanvasReady ? "canvas-loading" : ""
           }`}
-          style={{ backgroundColor: canvasBackground }}
+          style={{ backgroundColor: canvasBackground, zIndex: 1 }}
         >
           {/* Canvas */}
           <canvas
@@ -1255,8 +1229,8 @@ export default function Whiteboard() {
           {/* Preview Canvas for Shape Drawing */}
           <canvas
             ref={previewCanvasRef}
-            className="absolute top-0 left-0 w-full h-full pointer-events-none"
-            style={{ zIndex: 1 }}
+            className="absolute top-0 left-0 w-full h-full pointer-events-none preview-canvas"
+            style={{ zIndex: 2 }}
           />
 
           {/* Canvas Loading State */}
@@ -1365,6 +1339,71 @@ export default function Whiteboard() {
           </div>
         </div>
       </div>
+
+      {/* History Panel - Positioned at top level for proper z-index */}
+      {showHistory && (
+        <div
+          className="fixed top-32 right-6 bg-white rounded-xl shadow-lg border border-gray-200 p-4 w-80 max-h-96 overflow-y-auto history-panel"
+          style={{ zIndex: 1000 }}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+              <History className="w-4 h-4" />
+              Action History
+            </h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowHistory(false)}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+
+          {actionHistory.length === 0 ? (
+            <p className="text-gray-500 text-sm text-center py-4">
+              No actions yet
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {actionHistory
+                .slice()
+                .reverse()
+                .map((action, index) => (
+                  <div
+                    key={action.id}
+                    className="history-item flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg group cursor-pointer"
+                    onClick={() => restoreToHistoryPoint(action.id)}
+                    title="Click to restore to this point"
+                  >
+                    <div className="flex items-center gap-2">
+                      {getActionIcon(action.type)}
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">
+                          {getActionDescription(action)}
+                        </p>
+                        <p className="text-xs text-gray-500 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {formatTimestamp(action.timestamp)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs px-2 py-1 h-auto"
+                      >
+                        Restore
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

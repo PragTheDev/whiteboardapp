@@ -172,3 +172,24 @@
 .history-item:active {
   transform: translateX(4px);
 }
+
+/* Panel z-index layers */
+.dropdown-panel {
+  z-index: 1000 !important;
+}
+
+.canvas-container {
+  z-index: 1;
+}
+
+.preview-canvas {
+  z-index: 2;
+}
+
+/* Ensure dropdowns appear above everything */
+.history-panel,
+.settings-panel,
+.color-picker-panel {
+  z-index: 1000 !important;
+  position: relative;
+}
