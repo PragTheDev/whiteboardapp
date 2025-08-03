@@ -127,6 +127,20 @@ export default function Whiteboard() {
     }
   }, []); // No dependencies to prevent infinite loops
 
+  // Helper function to validate hex colors
+  const isValidHexColor = (color) => {
+    return /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(color);
+  };
+
+  // Helper function to handle custom color changes
+  const handleCustomColorChange = (color) => {
+    setCustomColor(color);
+    if (isValidHexColor(color)) {
+      setCurrentColor(color);
+      if (tool === "eraser") setTool("pen");
+    }
+  };
+
   // Close color picker when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -223,11 +237,11 @@ export default function Whiteboard() {
         const container = canvas.parentElement;
         const width = container.offsetWidth - 20;
         const height = container.offsetHeight - 20;
-        
+
         // Resize main canvas
         canvas.width = width;
         canvas.height = height;
-        
+
         // Resize preview canvas to match
         previewCanvas.width = width;
         previewCanvas.height = height;
@@ -261,6 +275,9 @@ export default function Whiteboard() {
       setHistory([imageData]);
       setHistoryIndex(0);
     }
+    
+    // Initialize custom color with current color
+    setCustomColor(currentColor);
   }, []); // Run only once on mount
 
   const getMousePos = (e) => {
@@ -333,14 +350,14 @@ export default function Whiteboard() {
     } else if (startPos) {
       // Complete shape drawing
       const pos = getMousePos(e);
-      
+
       // Clear preview canvas
       const previewCanvas = previewCanvasRef.current;
       if (previewCanvas) {
         const previewCtx = previewCanvas.getContext("2d");
         previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
       }
-      
+
       const shapeData = {
         type: "shape",
         tool: tool,
@@ -418,14 +435,14 @@ export default function Whiteboard() {
   const drawShapePreview = (start, end) => {
     const canvas = canvasRef.current;
     const previewCanvas = previewCanvasRef.current;
-    
+
     if (!canvas || !previewCanvas) return;
 
     const previewCtx = previewCanvas.getContext("2d");
-    
+
     // Clear preview canvas
     previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
-    
+
     // Set preview style
     previewCtx.globalCompositeOperation = "source-over";
     previewCtx.strokeStyle = currentColor;
@@ -778,7 +795,7 @@ export default function Whiteboard() {
                     <span className="hidden sm:inline">Settings</span>
                   </Button>
 
-                  <label className="flex items-center gap-2 px-3 py-2 hover:bg-white hover:shadow-sm transition-all duration-200 cursor-pointer rounded-md">
+                  <label className="flex items-center gap-2 px-3 py-2 hover:bg-white hover:shadow-sm transition-all duration-200 cursor-pointer rounded-md text-sm font-medium text-gray-700">
                     <Upload className="w-4 h-4" />
                     <span className="hidden sm:inline">Upload</span>
                     <input
@@ -876,11 +893,9 @@ export default function Whiteboard() {
                         </div>
                         <input
                           type="color"
-                          value={customColor}
+                          value={isValidHexColor(customColor) ? customColor : "#000000"}
                           onChange={(e) => {
-                            setCustomColor(e.target.value);
-                            setCurrentColor(e.target.value);
-                            if (tool === "eraser") setTool("pen");
+                            handleCustomColorChange(e.target.value);
                           }}
                           className="w-16 h-16 rounded-lg border-2 border-gray-300 cursor-pointer"
                         />
@@ -889,10 +904,27 @@ export default function Whiteboard() {
                             type="text"
                             value={customColor}
                             onChange={(e) => {
-                              setCustomColor(e.target.value);
-                              setCurrentColor(e.target.value);
+                              handleCustomColorChange(e.target.value);
                             }}
-                            className="px-2 py-1 text-xs border border-gray-300 rounded w-20"
+                            onBlur={(e) => {
+                              // Validate and fix the color on blur
+                              const value = e.target.value;
+                              if (!value.startsWith('#')) {
+                                const fixedColor = '#' + value;
+                                if (isValidHexColor(fixedColor)) {
+                                  handleCustomColorChange(fixedColor);
+                                } else {
+                                  setCustomColor(currentColor); // Reset to current color if invalid
+                                }
+                              } else if (!isValidHexColor(value)) {
+                                setCustomColor(currentColor); // Reset to current color if invalid
+                              }
+                            }}
+                            className={`px-2 py-1 text-xs border rounded w-24 ${
+                              isValidHexColor(customColor) 
+                                ? 'border-gray-300' 
+                                : 'border-red-300 bg-red-50'
+                            }`}
                             placeholder="#000000"
                           />
                           <Button
@@ -903,6 +935,11 @@ export default function Whiteboard() {
                             Done
                           </Button>
                         </div>
+                        {!isValidHexColor(customColor) && customColor && (
+                          <div className="text-xs text-red-600">
+                            Invalid color format. Use #RRGGBB or #RGB
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1019,7 +1056,12 @@ export default function Whiteboard() {
               const previewCanvas = previewCanvasRef.current;
               if (previewCanvas && startPos) {
                 const previewCtx = previewCanvas.getContext("2d");
-                previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+                previewCtx.clearRect(
+                  0,
+                  0,
+                  previewCanvas.width,
+                  previewCanvas.height
+                );
               }
               stopDrawing(e);
             }}
