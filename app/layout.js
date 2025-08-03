@@ -14,7 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata = {
   title: "Collaborative Whiteboard - Draw Together in Real-Time",
-  description: "A modern collaborative whiteboard application with real-time drawing, shapes, and multi-user support",
+  description:
+    "A modern collaborative whiteboard application with real-time drawing, shapes, and multi-user support",
 };
 
 export default function RootLayout({ children }) {

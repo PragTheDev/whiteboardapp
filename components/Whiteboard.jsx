@@ -29,7 +29,6 @@ export default function Whiteboard() {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [connectedUsers, setConnectedUsers] = useState(0);
   const [startPos, setStartPos] = useState(null);
-  const [isShapeDrawing, setIsShapeDrawing] = useState(false);
   const [showSaveNotification, setShowSaveNotification] = useState(false);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
 
@@ -180,7 +179,7 @@ export default function Whiteboard() {
         ctx.lineJoin = "round";
         ctx.fillStyle = "white";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
+
         setIsCanvasReady(true);
       };
 
@@ -226,9 +225,8 @@ export default function Whiteboard() {
       ctx.beginPath();
       ctx.moveTo(pos.x, pos.y);
     } else {
-      // For shapes, save starting position
+      // For shapes, just save starting position
       setStartPos(pos);
-      setIsShapeDrawing(true);
     }
   };
 
@@ -253,11 +251,8 @@ export default function Whiteboard() {
       if (socket) {
         socket.emit("drawing", drawingData);
       }
-    } else if (isShapeDrawing && startPos) {
-      // Preview shape while drawing
-      redrawCanvas();
-      drawShapePreview(startPos, pos);
     }
+    // For shapes, we don't draw anything during dragging - just wait for mouse up
   };
 
   const stopDrawing = (e) => {
@@ -270,7 +265,7 @@ export default function Whiteboard() {
       const ctx = canvas.getContext("2d");
       ctx.beginPath();
       saveCanvasState();
-    } else if (isShapeDrawing && startPos) {
+    } else if (startPos) {
       // Complete shape drawing
       const pos = getMousePos(e);
       const shapeData = {
@@ -288,7 +283,6 @@ export default function Whiteboard() {
         socket.emit("drawing", shapeData);
       }
 
-      setIsShapeDrawing(false);
       setStartPos(null);
       saveCanvasState();
     }
@@ -319,7 +313,8 @@ export default function Whiteboard() {
     ctx.globalCompositeOperation = "source-over";
     ctx.strokeStyle = data.color;
     ctx.lineWidth = data.size;
-    ctx.fillStyle = data.color + "20"; // Semi-transparent fill
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
 
     const { startPos, endPos, tool } = data;
     const width = endPos.x - startPos.x;
@@ -341,7 +336,7 @@ export default function Whiteboard() {
         const radius = Math.sqrt(width * width + height * height) / 2;
         const centerX = startPos.x + width / 2;
         const centerY = startPos.y + height / 2;
-        ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+        ctx.arc(centerX, centerY, Math.abs(radius), 0, 2 * Math.PI);
         ctx.stroke();
         break;
     }
@@ -351,9 +346,14 @@ export default function Whiteboard() {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
+    // Save current context state
+    ctx.save();
+    
     ctx.globalCompositeOperation = "source-over";
     ctx.strokeStyle = currentColor;
     ctx.lineWidth = brushSize;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
     ctx.setLineDash([5, 5]); // Dashed line for preview
 
     const width = end.x - start.x;
@@ -375,12 +375,13 @@ export default function Whiteboard() {
         const radius = Math.sqrt(width * width + height * height) / 2;
         const centerX = start.x + width / 2;
         const centerY = start.y + height / 2;
-        ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+        ctx.arc(centerX, centerY, Math.abs(radius), 0, 2 * Math.PI);
         ctx.stroke();
         break;
     }
 
-    ctx.setLineDash([]); // Reset line dash
+    // Restore context state
+    ctx.restore();
   };
 
   const redrawCanvas = useCallback(() => {
@@ -395,6 +396,17 @@ export default function Whiteboard() {
       img.src = historyRef.current[historyIndexRef.current];
     }
   }, []);
+
+  const restoreCanvasFromImageData = (imageData) => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    const img = new Image();
+    img.onload = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+    };
+    img.src = imageData;
+  };
 
   const clearCanvas = () => {
     const canvas = canvasRef.current;
@@ -449,7 +461,7 @@ export default function Whiteboard() {
     link.download = `whiteboard-${timestamp}.png`;
     link.href = canvas.toDataURL();
     link.click();
-    
+
     // Show save notification
     setShowSaveNotification(true);
     setTimeout(() => setShowSaveNotification(false), 3000);
@@ -466,11 +478,15 @@ export default function Whiteboard() {
                 <span className="text-white font-bold text-lg">✏️</span>
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Collaborative Whiteboard</h1>
-                <p className="text-sm text-gray-500">Draw, share, and create together</p>
+                <h1 className="text-xl font-bold text-gray-900">
+                  Collaborative Whiteboard
+                </h1>
+                <p className="text-sm text-gray-500">
+                  Draw, share, and create together
+                </p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
                 <Users className="w-4 h-4 text-green-600" />
@@ -478,16 +494,20 @@ export default function Whiteboard() {
                   {connectedUsers} user{connectedUsers !== 1 ? "s" : ""} online
                 </span>
               </div>
-              
+
               {socket?.connected ? (
                 <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span className="text-sm font-medium text-green-700">Connected</span>
+                  <span className="text-sm font-medium text-green-700">
+                    Connected
+                  </span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
                   <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                  <span className="text-sm font-medium text-red-700">Disconnected</span>
+                  <span className="text-sm font-medium text-red-700">
+                    Disconnected
+                  </span>
                 </div>
               )}
             </div>
@@ -498,7 +518,9 @@ export default function Whiteboard() {
             {/* Drawing Tools */}
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-gray-700">Tools:</span>
+                <span className="text-sm font-semibold text-gray-700">
+                  Tools:
+                </span>
                 <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
                   {tools.map((toolItem) => (
                     <Button
@@ -510,9 +532,9 @@ export default function Whiteboard() {
                         setIsEraser(toolItem.id === "eraser");
                       }}
                       className={`flex items-center gap-2 transition-all duration-200 ${
-                        tool === toolItem.id 
-                          ? 'bg-blue-500 text-white shadow-md transform scale-105' 
-                          : 'hover:bg-white hover:shadow-sm'
+                        tool === toolItem.id
+                          ? "bg-blue-500 text-white shadow-md transform scale-105"
+                          : "hover:bg-white hover:shadow-sm"
                       }`}
                       title={toolItem.name}
                     >
@@ -609,7 +631,9 @@ export default function Whiteboard() {
 
               <div className="flex items-center gap-3">
                 <div className="w-px h-6 bg-gray-300"></div>
-                <span className="text-sm font-semibold text-gray-700">Brush Size:</span>
+                <span className="text-sm font-semibold text-gray-700">
+                  Brush Size:
+                </span>
                 <div className="flex items-center gap-3 p-2 bg-gray-100 rounded-lg">
                   <input
                     type="range"
@@ -619,18 +643,22 @@ export default function Whiteboard() {
                     onChange={(e) => setBrushSize(parseInt(e.target.value))}
                     className="w-24 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
                     style={{
-                      background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(brushSize / 50) * 100}%, #e5e7eb ${(brushSize / 50) * 100}%, #e5e7eb 100%)`
+                      background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${
+                        (brushSize / 50) * 100
+                      }%, #e5e7eb ${(brushSize / 50) * 100}%, #e5e7eb 100%)`,
                     }}
                   />
                   <div className="flex items-center gap-2 min-w-[60px]">
-                    <div 
+                    <div
                       className="bg-gray-800 rounded-full"
                       style={{
                         width: `${Math.max(4, Math.min(20, brushSize))}px`,
-                        height: `${Math.max(4, Math.min(20, brushSize))}px`
+                        height: `${Math.max(4, Math.min(20, brushSize))}px`,
                       }}
                     ></div>
-                    <span className="text-sm font-medium text-gray-600">{brushSize}px</span>
+                    <span className="text-sm font-medium text-gray-600">
+                      {brushSize}px
+                    </span>
                   </div>
                 </div>
               </div>
@@ -641,9 +669,11 @@ export default function Whiteboard() {
 
       {/* Canvas Area */}
       <div className="flex-1 p-6 min-h-0">
-        <div className={`relative h-full bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden transition-all duration-300 ${
-          !isCanvasReady ? 'canvas-loading' : ''
-        }`}>
+        <div
+          className={`relative h-full bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden transition-all duration-300 ${
+            !isCanvasReady ? "canvas-loading" : ""
+          }`}
+        >
           {/* Canvas */}
           <canvas
             ref={canvasRef}
@@ -653,7 +683,7 @@ export default function Whiteboard() {
                 : tool === "eraser"
                 ? "cursor-cell"
                 : "cursor-crosshair"
-            } ${!isCanvasReady ? 'opacity-0' : 'opacity-100'}`}
+            } ${!isCanvasReady ? "opacity-0" : "opacity-100"}`}
             onMouseDown={startDrawing}
             onMouseMove={draw}
             onMouseUp={stopDrawing}
@@ -662,7 +692,7 @@ export default function Whiteboard() {
             onTouchMove={draw}
             onTouchEnd={stopDrawing}
           />
-          
+
           {/* Canvas Loading State */}
           {!isCanvasReady && (
             <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
@@ -672,13 +702,15 @@ export default function Whiteboard() {
               </div>
             </div>
           )}
-          
+
           {/* Canvas Overlay Info */}
           <div className="absolute top-4 right-4 flex items-center gap-2 fade-in">
             <div className="px-3 py-1 bg-black/10 backdrop-blur-sm rounded-lg text-sm text-gray-700 shadow-sm">
-              <span className="font-medium">{tools.find((t) => t.id === tool)?.name}</span>
+              <span className="font-medium">
+                {tools.find((t) => t.id === tool)?.name}
+              </span>
             </div>
-            <div 
+            <div
               className="w-6 h-6 rounded-lg border-2 border-white shadow-sm transition-transform hover:scale-110"
               style={{ backgroundColor: currentColor }}
               title={`Current color: ${currentColor}`}
@@ -689,7 +721,9 @@ export default function Whiteboard() {
           {showSaveNotification && (
             <div className="absolute top-4 left-4 px-4 py-2 bg-green-500 text-white rounded-lg shadow-lg fade-in flex items-center gap-2">
               <Save className="w-4 h-4" />
-              <span className="text-sm font-medium">Canvas saved successfully!</span>
+              <span className="text-sm font-medium">
+                Canvas saved successfully!
+              </span>
             </div>
           )}
 
@@ -724,19 +758,43 @@ export default function Whiteboard() {
         <div className="flex items-center justify-between text-xs text-gray-600">
           <div className="flex items-center gap-4">
             <span>
-              <strong>Keyboard Shortcuts:</strong> 
-              <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">P</kbd> Pen, 
-              <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">E</kbd> Eraser, 
-              <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">L</kbd> Line, 
-              <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">R</kbd> Rectangle, 
-              <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">C</kbd> Circle
+              <strong>Keyboard Shortcuts:</strong>
+              <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">
+                P
+              </kbd>{" "}
+              Pen,
+              <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">
+                E
+              </kbd>{" "}
+              Eraser,
+              <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">
+                L
+              </kbd>{" "}
+              Line,
+              <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">
+                R
+              </kbd>{" "}
+              Rectangle,
+              <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">
+                C
+              </kbd>{" "}
+              Circle
             </span>
           </div>
           <div className="flex items-center gap-4">
             <span>
-              <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">Ctrl+Z</kbd> Undo, 
-              <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">Ctrl+Y</kbd> Redo, 
-              <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">Ctrl+S</kbd> Save
+              <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">
+                Ctrl+Z
+              </kbd>{" "}
+              Undo,
+              <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">
+                Ctrl+Y
+              </kbd>{" "}
+              Redo,
+              <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">
+                Ctrl+S
+              </kbd>{" "}
+              Save
             </span>
           </div>
         </div>
