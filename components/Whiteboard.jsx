@@ -30,7 +30,7 @@ export default function Whiteboard() {
   const historyIndexRef = useRef(-1);
 
   const [isDrawing, setIsDrawing] = useState(false);
-  const [currentColor, setCurrentColor] = useState("#000000");
+  const [currentColor, setCurrentColor] = useState("#1F2937");
   const [brushSize, setBrushSize] = useState(2);
   const [socket, setSocket] = useState(null);
   const [isEraser, setIsEraser] = useState(false);
@@ -41,8 +41,6 @@ export default function Whiteboard() {
   const [startPos, setStartPos] = useState(null);
   const [showSaveNotification, setShowSaveNotification] = useState(false);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
-  const [showColorPicker, setShowColorPicker] = useState(false);
-  const [customColor, setCustomColor] = useState("#000000");
   const [isGridVisible, setIsGridVisible] = useState(false);
   const [canvasBackground, setCanvasBackground] = useState("#FFFFFF");
   const [showSettings, setShowSettings] = useState(false);
@@ -57,30 +55,16 @@ export default function Whiteboard() {
   }, [history, historyIndex]);
 
   const colors = [
-    "#000000",
-    "#FFFFFF",
-    "#FF0000",
-    "#00FF00",
-    "#0000FF",
-    "#FFFF00",
-    "#FF00FF",
-    "#00FFFF",
-    "#FFA500",
-    "#800080",
-    "#008000",
-    "#000080",
-    "#FF69B4",
-    "#32CD32",
-    "#FFD700",
-    "#FF4500",
-    "#8B4513",
-    "#FF1493",
-    "#00CED1",
-    "#9370DB",
-    "#20B2AA",
-    "#DC143C",
-    "#4169E1",
-    "#228B22",
+    "#1F2937", // Dark Gray
+    "#EF4444", // Red
+    "#F59E0B", // Amber
+    "#10B981", // Emerald
+    "#3B82F6", // Blue
+    "#8B5CF6", // Violet
+    "#EC4899", // Pink
+    "#06B6D4", // Cyan
+    "#84CC16", // Lime
+    "#F97316", // Orange
   ];
 
   const tools = [
@@ -149,32 +133,6 @@ export default function Whiteboard() {
       setHistoryIndex((prev) => prev + 1);
     }
   }, []); // No dependencies to prevent infinite loops
-
-  // Helper function to validate hex colors
-  const isValidHexColor = (color) => {
-    return /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(color);
-  };
-
-  // Helper function to handle custom color changes
-  const handleCustomColorChange = (color) => {
-    setCustomColor(color);
-    if (isValidHexColor(color)) {
-      setCurrentColor(color);
-      if (tool === "eraser") setTool("pen");
-    }
-  };
-
-  // Close color picker when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (showColorPicker && !event.target.closest(".color-picker-container")) {
-        setShowColorPicker(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showColorPicker]);
 
   // Update canvas background when changed
   useEffect(() => {
@@ -298,9 +256,6 @@ export default function Whiteboard() {
       setHistory([imageData]);
       setHistoryIndex(0);
     }
-
-    // Initialize custom color with current color
-    setCustomColor(currentColor);
   }, []); // Run only once on mount
 
   const getMousePos = (e) => {
@@ -1003,102 +958,23 @@ export default function Whiteboard() {
                   <Palette className="w-4 h-4" />
                   Colors:
                 </span>
-                <div className="relative color-picker-container">
-                  <div className="flex gap-1 p-2 bg-gray-100 rounded-lg">
-                    {colors.map((color) => (
-                      <button
-                        key={color}
-                        className={`w-8 h-8 rounded-lg border-2 transition-all duration-200 hover:scale-110 hover:shadow-md ${
-                          currentColor === color
-                            ? "border-gray-800 scale-110 shadow-md ring-2 ring-blue-200"
-                            : "border-gray-300 hover:border-gray-400"
-                        }`}
-                        style={{ backgroundColor: color }}
-                        onClick={() => {
-                          setCurrentColor(color);
-                          setCustomColor(color);
-                          if (tool === "eraser") setTool("pen");
-                        }}
-                        title={`Color: ${color}`}
-                      />
-                    ))}
-
-                    {/* Custom Color Picker Button */}
+                <div className="flex gap-1 p-2 bg-gray-100 rounded-lg">
+                  {colors.map((color) => (
                     <button
-                      className="w-8 h-8 rounded-lg border-2 border-dashed border-gray-400 flex items-center justify-center hover:border-gray-600 transition-all duration-200"
-                      onClick={() => setShowColorPicker(!showColorPicker)}
-                      title="Custom Color"
-                    >
-                      <Plus className="w-4 h-4 text-gray-600" />
-                    </button>
-                  </div>
-
-                  {/* Custom Color Picker Modal */}
-                  {showColorPicker && (
-                    <div
-                      className="absolute top-12 left-0 bg-white rounded-lg shadow-xl border border-gray-200 p-4 color-picker-panel"
-                      style={{ zIndex: 1000 }}
-                    >
-                      <div className="space-y-3">
-                        <div className="text-sm font-medium text-gray-700">
-                          Custom Color
-                        </div>
-                        <input
-                          type="color"
-                          value={
-                            isValidHexColor(customColor)
-                              ? customColor
-                              : "#000000"
-                          }
-                          onChange={(e) => {
-                            handleCustomColorChange(e.target.value);
-                          }}
-                          className="w-16 h-16 rounded-lg border-2 border-gray-300 cursor-pointer"
-                        />
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={customColor}
-                            onChange={(e) => {
-                              handleCustomColorChange(e.target.value);
-                            }}
-                            onBlur={(e) => {
-                              // Validate and fix the color on blur
-                              const value = e.target.value;
-                              if (!value.startsWith("#")) {
-                                const fixedColor = "#" + value;
-                                if (isValidHexColor(fixedColor)) {
-                                  handleCustomColorChange(fixedColor);
-                                } else {
-                                  setCustomColor(currentColor); // Reset to current color if invalid
-                                }
-                              } else if (!isValidHexColor(value)) {
-                                setCustomColor(currentColor); // Reset to current color if invalid
-                              }
-                            }}
-                            className={`px-2 py-1 text-xs border rounded w-24 ${
-                              isValidHexColor(customColor)
-                                ? "border-gray-300"
-                                : "border-red-300 bg-red-50"
-                            }`}
-                            placeholder="#000000"
-                          />
-                          <Button
-                            size="sm"
-                            onClick={() => setShowColorPicker(false)}
-                            className="text-xs"
-                          >
-                            Done
-                          </Button>
-                        </div>
-                        {!isValidHexColor(customColor) && customColor && (
-                          <div className="text-xs text-red-600">
-                            Invalid color format. Use #RRGGBB or #RGB
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                      key={color}
+                      className={`w-8 h-8 rounded-lg border-2 transition-all duration-200 hover:scale-110 hover:shadow-md ${
+                        currentColor === color
+                          ? "border-gray-800 scale-110 shadow-md ring-2 ring-blue-200"
+                          : "border-gray-300 hover:border-gray-400"
+                      }`}
+                      style={{ backgroundColor: color }}
+                      onClick={() => {
+                        setCurrentColor(color);
+                        if (tool === "eraser") setTool("pen");
+                      }}
+                      title={`Color: ${color}`}
+                    />
+                  ))}
                 </div>
               </div>
 
@@ -1340,11 +1216,11 @@ export default function Whiteboard() {
         </div>
       </div>
 
-      {/* History Panel - Positioned at top level for proper z-index */}
+      {/* History Panel - Fixed position overlay, completely separate from layout */}
       {showHistory && (
         <div
-          className="fixed top-32 right-6 bg-white rounded-xl shadow-lg border border-gray-200 p-4 w-80 max-h-96 overflow-y-auto history-panel"
-          style={{ zIndex: 1000 }}
+          className="fixed top-32 right-6 bg-white rounded-xl shadow-xl border border-gray-200 p-4 w-80 max-h-96 overflow-y-auto"
+          style={{ zIndex: 9999 }}
         >
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-gray-800 flex items-center gap-2">
