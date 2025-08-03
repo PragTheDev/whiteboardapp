@@ -30,6 +30,8 @@ export default function Whiteboard() {
   const [connectedUsers, setConnectedUsers] = useState(0);
   const [startPos, setStartPos] = useState(null);
   const [isShapeDrawing, setIsShapeDrawing] = useState(false);
+  const [showSaveNotification, setShowSaveNotification] = useState(false);
+  const [isCanvasReady, setIsCanvasReady] = useState(false);
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -178,6 +180,8 @@ export default function Whiteboard() {
         ctx.lineJoin = "round";
         ctx.fillStyle = "white";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        setIsCanvasReady(true);
       };
 
       resizeCanvas();
@@ -445,191 +449,298 @@ export default function Whiteboard() {
     link.download = `whiteboard-${timestamp}.png`;
     link.href = canvas.toDataURL();
     link.click();
+    
+    // Show save notification
+    setShowSaveNotification(true);
+    setTimeout(() => setShowSaveNotification(false), 3000);
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100">
-      {/* Toolbar */}
-      <div className="bg-white shadow-md p-4 space-y-4">
-        {/* First Row - Tools */}
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className="font-medium">Tools:</span>
-            {tools.map((toolItem) => (
-              <Button
-                key={toolItem.id}
-                variant={tool === toolItem.id ? "default" : "outline"}
-                size="sm"
-                onClick={() => {
-                  setTool(toolItem.id);
-                  setIsEraser(toolItem.id === "eraser");
-                }}
-                className="flex items-center gap-2"
-                title={toolItem.name}
-              >
-                <span>{toolItem.icon}</span>
-                {toolItem.name}
-              </Button>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={undo}
-              disabled={historyIndex <= 0}
-              className="flex items-center gap-2"
-            >
-              <Undo className="w-4 h-4" />
-              Undo
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={redo}
-              disabled={historyIndex >= history.length - 1}
-              className="flex items-center gap-2"
-            >
-              <Redo className="w-4 h-4" />
-              Redo
-            </Button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleClearCanvas}
-              className="flex items-center gap-2"
-            >
-              <Trash2 className="w-4 h-4" />
-              Clear
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={saveCanvas}
-              className="flex items-center gap-2"
-            >
-              <Save className="w-4 h-4" />
-              Save
-            </Button>
-          </div>
-        </div>
-
-        {/* Second Row - Colors and Brush Size */}
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Palette className="w-5 h-5" />
-            <span className="font-medium">Colors:</span>
-            <div className="flex gap-1">
-              {colors.map((color) => (
-                <button
-                  key={color}
-                  className={`w-8 h-8 rounded-full border-2 transition-all hover:scale-110 ${
-                    currentColor === color
-                      ? "border-gray-800 scale-110"
-                      : "border-gray-300"
-                  }`}
-                  style={{ backgroundColor: color }}
-                  onClick={() => {
-                    setCurrentColor(color);
-                    if (tool === "eraser") setTool("pen");
-                  }}
-                  title={`Color: ${color}`}
-                />
-              ))}
+    <div className="flex flex-col h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Header */}
+      <div className="bg-white/80 backdrop-blur-md border-b border-gray-200 shadow-sm">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                <span className="text-white font-bold text-lg">✏️</span>
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">Collaborative Whiteboard</h1>
+                <p className="text-sm text-gray-500">Draw, share, and create together</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+                <Users className="w-4 h-4 text-green-600" />
+                <span className="text-sm font-medium text-green-700">
+                  {connectedUsers} user{connectedUsers !== 1 ? "s" : ""} online
+                </span>
+              </div>
+              
+              {socket?.connected ? (
+                <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span className="text-sm font-medium text-green-700">Connected</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                  <span className="text-sm font-medium text-red-700">Disconnected</span>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="font-medium">Brush Size:</span>
-            <input
-              type="range"
-              min="1"
-              max="50"
-              value={brushSize}
-              onChange={(e) => setBrushSize(parseInt(e.target.value))}
-              className="w-32"
+          {/* Tools Section */}
+          <div className="space-y-4">
+            {/* Drawing Tools */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-gray-700">Tools:</span>
+                <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
+                  {tools.map((toolItem) => (
+                    <Button
+                      key={toolItem.id}
+                      variant={tool === toolItem.id ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => {
+                        setTool(toolItem.id);
+                        setIsEraser(toolItem.id === "eraser");
+                      }}
+                      className={`flex items-center gap-2 transition-all duration-200 ${
+                        tool === toolItem.id 
+                          ? 'bg-blue-500 text-white shadow-md transform scale-105' 
+                          : 'hover:bg-white hover:shadow-sm'
+                      }`}
+                      title={toolItem.name}
+                    >
+                      <span className="text-base">{toolItem.icon}</span>
+                      <span className="hidden sm:inline">{toolItem.name}</span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="w-px h-6 bg-gray-300"></div>
+                <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={undo}
+                    disabled={historyIndex <= 0}
+                    className="flex items-center gap-2 hover:bg-white hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                    title="Undo (Ctrl+Z)"
+                  >
+                    <Undo className="w-4 h-4" />
+                    <span className="hidden sm:inline">Undo</span>
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={redo}
+                    disabled={historyIndex >= history.length - 1}
+                    className="flex items-center gap-2 hover:bg-white hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                    title="Redo (Ctrl+Y)"
+                  >
+                    <Redo className="w-4 h-4" />
+                    <span className="hidden sm:inline">Redo</span>
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="w-px h-6 bg-gray-300"></div>
+                <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleClearCanvas}
+                    className="flex items-center gap-2 hover:bg-red-50 hover:text-red-600 hover:shadow-sm transition-all duration-200"
+                    title="Clear Canvas"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span className="hidden sm:inline">Clear</span>
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={saveCanvas}
+                    className="flex items-center gap-2 hover:bg-green-50 hover:text-green-600 hover:shadow-sm transition-all duration-200"
+                    title="Save Canvas (Ctrl+S)"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span className="hidden sm:inline">Save</span>
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Color Palette and Brush Size */}
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  <Palette className="w-4 h-4" />
+                  Colors:
+                </span>
+                <div className="flex gap-1 p-2 bg-gray-100 rounded-lg">
+                  {colors.map((color) => (
+                    <button
+                      key={color}
+                      className={`w-8 h-8 rounded-lg border-2 transition-all duration-200 hover:scale-110 hover:shadow-md ${
+                        currentColor === color
+                          ? "border-gray-800 scale-110 shadow-md ring-2 ring-blue-200"
+                          : "border-gray-300 hover:border-gray-400"
+                      }`}
+                      style={{ backgroundColor: color }}
+                      onClick={() => {
+                        setCurrentColor(color);
+                        if (tool === "eraser") setTool("pen");
+                      }}
+                      title={`Color: ${color}`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="w-px h-6 bg-gray-300"></div>
+                <span className="text-sm font-semibold text-gray-700">Brush Size:</span>
+                <div className="flex items-center gap-3 p-2 bg-gray-100 rounded-lg">
+                  <input
+                    type="range"
+                    min="1"
+                    max="50"
+                    value={brushSize}
+                    onChange={(e) => setBrushSize(parseInt(e.target.value))}
+                    className="w-24 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                    style={{
+                      background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(brushSize / 50) * 100}%, #e5e7eb ${(brushSize / 50) * 100}%, #e5e7eb 100%)`
+                    }}
+                  />
+                  <div className="flex items-center gap-2 min-w-[60px]">
+                    <div 
+                      className="bg-gray-800 rounded-full"
+                      style={{
+                        width: `${Math.max(4, Math.min(20, brushSize))}px`,
+                        height: `${Math.max(4, Math.min(20, brushSize))}px`
+                      }}
+                    ></div>
+                    <span className="text-sm font-medium text-gray-600">{brushSize}px</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Canvas Area */}
+      <div className="flex-1 p-6 min-h-0">
+        <div className={`relative h-full bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden transition-all duration-300 ${
+          !isCanvasReady ? 'canvas-loading' : ''
+        }`}>
+          {/* Canvas */}
+          <canvas
+            ref={canvasRef}
+            className={`w-full h-full touch-none transition-all duration-200 ${
+              tool === "pen"
+                ? "cursor-crosshair"
+                : tool === "eraser"
+                ? "cursor-cell"
+                : "cursor-crosshair"
+            } ${!isCanvasReady ? 'opacity-0' : 'opacity-100'}`}
+            onMouseDown={startDrawing}
+            onMouseMove={draw}
+            onMouseUp={stopDrawing}
+            onMouseLeave={stopDrawing}
+            onTouchStart={startDrawing}
+            onTouchMove={draw}
+            onTouchEnd={stopDrawing}
+          />
+          
+          {/* Canvas Loading State */}
+          {!isCanvasReady && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
+              <div className="flex flex-col items-center gap-3">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                <p className="text-sm text-gray-500">Preparing canvas...</p>
+              </div>
+            </div>
+          )}
+          
+          {/* Canvas Overlay Info */}
+          <div className="absolute top-4 right-4 flex items-center gap-2 fade-in">
+            <div className="px-3 py-1 bg-black/10 backdrop-blur-sm rounded-lg text-sm text-gray-700 shadow-sm">
+              <span className="font-medium">{tools.find((t) => t.id === tool)?.name}</span>
+            </div>
+            <div 
+              className="w-6 h-6 rounded-lg border-2 border-white shadow-sm transition-transform hover:scale-110"
+              style={{ backgroundColor: currentColor }}
+              title={`Current color: ${currentColor}`}
             />
-            <span className="text-sm text-gray-600 min-w-[40px]">
-              {brushSize}px
-            </span>
           </div>
 
-          <div className="flex items-center gap-2 ml-auto">
-            <Users className="w-4 h-4" />
-            <span className="text-sm text-gray-600">
-              {connectedUsers} user{connectedUsers !== 1 ? "s" : ""} online
-            </span>
+          {/* Save Notification */}
+          {showSaveNotification && (
+            <div className="absolute top-4 left-4 px-4 py-2 bg-green-500 text-white rounded-lg shadow-lg fade-in flex items-center gap-2">
+              <Save className="w-4 h-4" />
+              <span className="text-sm font-medium">Canvas saved successfully!</span>
+            </div>
+          )}
+
+          {/* Mobile Floating Action Button */}
+          <div className="absolute bottom-4 right-4 flex flex-col gap-2 md:hidden">
+            <button
+              onClick={undo}
+              disabled={historyIndex <= 0}
+              className="w-12 h-12 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110 disabled:cursor-not-allowed"
+            >
+              <Undo className="w-5 h-5" />
+            </button>
+            <button
+              onClick={redo}
+              disabled={historyIndex >= history.length - 1}
+              className="w-12 h-12 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110 disabled:cursor-not-allowed"
+            >
+              <Redo className="w-5 h-5" />
+            </button>
+            <button
+              onClick={handleClearCanvas}
+              className="w-12 h-12 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110"
+            >
+              <Trash2 className="w-5 h-5" />
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Canvas */}
-      <div className="flex-1 p-4 min-h-0">
-        <canvas
-          ref={canvasRef}
-          className={`border border-gray-300 bg-white rounded-lg shadow-lg w-full h-full touch-none ${
-            tool === "pen"
-              ? "cursor-crosshair"
-              : tool === "eraser"
-              ? "cursor-cell"
-              : "cursor-crosshair"
-          }`}
-          onMouseDown={startDrawing}
-          onMouseMove={draw}
-          onMouseUp={stopDrawing}
-          onMouseLeave={stopDrawing}
-          onTouchStart={startDrawing}
-          onTouchMove={draw}
-          onTouchEnd={stopDrawing}
-        />
-      </div>
-
-      {/* Status */}
-      <div className="bg-white border-t p-3 text-sm text-gray-600">
-        <div className="flex items-center justify-between flex-wrap gap-2">
+      {/* Footer */}
+      <div className="bg-white/80 backdrop-blur-md border-t border-gray-200 px-6 py-3">
+        <div className="flex items-center justify-between text-xs text-gray-600">
           <div className="flex items-center gap-4">
-            {socket?.connected ? (
-              <span className="text-green-600 flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                Connected - Real-time collaboration active
-              </span>
-            ) : (
-              <span className="text-red-600 flex items-center gap-2">
-                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                Disconnected
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-4 text-xs">
             <span>
-              Tool: <strong>{tools.find((t) => t.id === tool)?.name}</strong>
-            </span>
-            <span>
-              Color:{" "}
-              <span
-                className="inline-block w-3 h-3 rounded-full border ml-1"
-                style={{ backgroundColor: currentColor }}
-              ></span>
-            </span>
-            <span>
-              Size: <strong>{brushSize}px</strong>
+              <strong>Keyboard Shortcuts:</strong> 
+              <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">P</kbd> Pen, 
+              <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">E</kbd> Eraser, 
+              <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">L</kbd> Line, 
+              <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">R</kbd> Rectangle, 
+              <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">C</kbd> Circle
             </span>
           </div>
-        </div>
-
-        <div className="mt-2 text-xs text-gray-500">
-          Shortcuts: P(en), E(raser), L(ine), R(ectangle), C(ircle) | Ctrl+Z
-          (Undo), Ctrl+Y (Redo), Ctrl+S (Save)
+          <div className="flex items-center gap-4">
+            <span>
+              <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">Ctrl+Z</kbd> Undo, 
+              <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">Ctrl+Y</kbd> Redo, 
+              <kbd className="ml-1 px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">Ctrl+S</kbd> Save
+            </span>
+          </div>
         </div>
       </div>
     </div>
   );
 }
-
