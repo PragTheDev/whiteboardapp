@@ -24,19 +24,19 @@ export default function SharePanel({
 
   const copyToClipboard = async () => {
     if (!shareUrl) return;
-    
+
     try {
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error('Failed to copy: ', err);
+      console.error("Failed to copy: ", err);
       // Fallback for older browsers
-      const textArea = document.createElement('textarea');
+      const textArea = document.createElement("textarea");
       textArea.value = shareUrl;
       document.body.appendChild(textArea);
       textArea.select();
-      document.execCommand('copy');
+      document.execCommand("copy");
       document.body.removeChild(textArea);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -49,7 +49,14 @@ export default function SharePanel({
 
   if (!showShare) return null;
 
-  console.log("SharePanel render - roomId:", roomId, "shareUrl:", shareUrl, "showShare:", showShare);
+  console.log(
+    "SharePanel render - roomId:",
+    roomId,
+    "shareUrl:",
+    shareUrl,
+    "showShare:",
+    showShare
+  );
 
   return (
     <div
@@ -80,7 +87,8 @@ export default function SharePanel({
             </span>
           </div>
           <p className="text-sm text-gray-600">
-            Use the "Create Room" button in the header to start collaborating with others
+            Use the "Create Room" button in the header to start collaborating
+            with others
           </p>
         </div>
       ) : (

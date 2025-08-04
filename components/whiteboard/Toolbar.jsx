@@ -6,7 +6,6 @@ import {
   EyeOff,
   History,
   Settings,
-  Upload,
   RotateCcw,
   Trash2,
   Save,
@@ -27,7 +26,6 @@ export default function Toolbar({
   setShowHistory,
   setShowSettings,
   setShowShare,
-  handleImageUpload,
   resetCanvas,
   handleClearCanvas,
   saveCanvas,
@@ -149,17 +147,6 @@ export default function Toolbar({
               <Settings className="w-4 h-4" />
               <span className="hidden sm:inline">Settings</span>
             </Button>
-
-            <label className="flex items-center gap-2 px-3 py-2 hover:bg-white hover:shadow-sm transition-all duration-200 cursor-pointer rounded-md text-sm font-medium text-gray-700">
-              <Upload className="w-4 h-4" />
-              <span className="hidden sm:inline">Upload</span>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageUpload}
-                className="hidden"
-              />
-            </label>
 
             <Button
               variant="ghost"

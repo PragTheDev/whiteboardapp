@@ -8,7 +8,7 @@ export default function SettingsPanel({
   if (!showSettings) return null;
 
   return (
-    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
+    <div className="fixed top-32 left-6 bg-white border border-gray-200 rounded-lg p-4 space-y-3 shadow-xl z-50 min-w-[300px]">
       <h3 className="text-sm font-semibold text-gray-700">Canvas Settings</h3>
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">

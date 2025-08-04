@@ -26,6 +26,8 @@ app.prepare().then(() => {
       origin: "*",
       methods: ["GET", "POST"],
     },
+    pingTimeout: 60000,
+    pingInterval: 25000,
   });
 
   io.on("connection", (socket) => {
@@ -33,9 +35,12 @@ app.prepare().then(() => {
 
     // Handle joining a room
     socket.on("join-room", (roomId) => {
+      console.log(`join-room event received with roomId: ${roomId}`);
+
       if (!roomId) {
         // Create a new private room
         roomId = generateRoomId();
+        console.log(`Creating new room: ${roomId}`);
         socket.emit("room-created", roomId);
       }
 
@@ -88,6 +93,30 @@ app.prepare().then(() => {
         const room = rooms.get(socket.roomId);
         if (room) {
           room.canvasData = canvasData;
+        }
+      }
+    });
+
+    // Handle canvas sync (for undo/redo operations)
+    socket.on("canvas-sync", (canvasData) => {
+      if (socket.roomId) {
+        const room = rooms.get(socket.roomId);
+        if (room) {
+          room.canvasData = canvasData;
+          // Broadcast to all other users in the room
+          socket.to(socket.roomId).emit("canvas-synced", canvasData);
+        }
+      }
+    });
+
+    // Handle canvas restore for undo/redo
+    socket.on("canvas-restore", (canvasData) => {
+      if (socket.roomId) {
+        const room = rooms.get(socket.roomId);
+        if (room) {
+          room.canvasData = canvasData;
+          // Broadcast to all other users in the room
+          socket.to(socket.roomId).emit("canvas-restored", canvasData);
         }
       }
     });

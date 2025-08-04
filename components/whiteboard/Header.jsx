@@ -1,6 +1,11 @@
 import { Users, Share2, Plus } from "lucide-react";
 
-export default function Header({ connectedUsers, socket, roomId, onCreateRoom }) {
+export default function Header({
+  connectedUsers,
+  socket,
+  roomId,
+  onCreateRoom,
+}) {
   return (
     <div className="bg-white/80 backdrop-blur-md border-b border-gray-200 shadow-sm">
       <div className="px-6 py-2">
@@ -22,14 +27,17 @@ export default function Header({ connectedUsers, socket, roomId, onCreateRoom })
           <div className="flex items-center gap-3">
             {!roomId && (
               <button
-                onClick={onCreateRoom}
+                onClick={() => {
+                  console.log("Header Create Room button clicked");
+                  onCreateRoom();
+                }}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium"
               >
                 <Plus className="w-4 h-4" />
                 Create Room
               </button>
             )}
-            
+
             <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
               <Users className="w-4 h-4 text-green-600" />
               <span className="text-sm font-medium text-green-700">
@@ -45,7 +53,7 @@ export default function Header({ connectedUsers, socket, roomId, onCreateRoom })
                 </span>
               </div>
             ) : (
-              <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex itms-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
                 <div className="w-2 h-2 bg-red-500 rounded-full"></div>
                 <span className="text-sm font-medium text-red-700">
                   Disconnected

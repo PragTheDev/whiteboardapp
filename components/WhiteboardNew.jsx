@@ -14,7 +14,6 @@ import {
   drawShape,
   drawShapePreview,
   clearCanvas,
-  loadImageToCanvas,
   saveCanvas,
 } from "./whiteboard/utils";
 import Header from "./whiteboard/Header";
@@ -55,6 +54,7 @@ export default function Whiteboard({ roomId = null }) {
   const [showShare, setShowShare] = useState(false);
   const [actionHistory, setActionHistory] = useState([]);
   const [currentRoomId, setCurrentRoomId] = useState(roomId);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -69,9 +69,11 @@ export default function Whiteboard({ roomId = null }) {
 
     // Handle room creation
     newSocket.on("room-created", (newRoomId) => {
-      console.log("Room created:", newRoomId);
+      console.log("Room created event received:", newRoomId);
+      console.log("Current router:", router);
       setCurrentRoomId(newRoomId);
       router.push(`/room/${newRoomId}`);
+      console.log("Navigated to room:", newRoomId);
     });
 
     // Handle room joining
@@ -386,10 +388,14 @@ export default function Whiteboard({ roomId = null }) {
 
   const createNewRoom = () => {
     console.log("Creating new room...");
+    console.log("Socket connected:", socket?.connected);
+    console.log("Socket object:", socket);
     if (socket) {
       // Request creation of a new room by passing null as roomId
       socket.emit("join-room", null);
       console.log("Emitted join-room with null");
+    } else {
+      console.log("No socket available");
     }
   };
 
@@ -399,19 +405,6 @@ export default function Whiteboard({ roomId = null }) {
       socket.emit("clear-canvas");
     }
     saveCanvasState("clear", { background: canvasBackground });
-  };
-
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (file && file.type.startsWith("image/")) {
-      loadImageToCanvas(
-        canvasRef.current,
-        file,
-        canvasBackground,
-        isGridVisible,
-        saveCanvasState
-      );
-    }
   };
 
   const restoreToHistoryPoint = useCallback(
@@ -439,9 +432,9 @@ export default function Whiteboard({ roomId = null }) {
           setHistory(newHistory);
           setHistoryIndex(newHistory.length - 1);
 
-          if (socket) {
-            socket.emit("canvas-cleared");
-            socket.emit("canvas-restored", action.imageData);
+          // Sync with other users
+          if (socket && currentRoomId) {
+            socket.emit("canvas-restore", action.imageData);
           }
         };
         img.src = action.imageData;
@@ -449,7 +442,7 @@ export default function Whiteboard({ roomId = null }) {
         setShowHistory(false);
       }
     },
-    [actionHistory, history, historyIndex, socket]
+    [actionHistory, history, historyIndex, socket, currentRoomId]
   );
 
   const undo = useCallback(() => {
@@ -462,10 +455,15 @@ export default function Whiteboard({ roomId = null }) {
       img.onload = () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0);
+        
+        // Sync with other users
+        if (socket && currentRoomId) {
+          socket.emit("canvas-sync", historyRef.current[newIndex]);
+        }
       };
       img.src = historyRef.current[newIndex];
     }
-  }, []);
+  }, [socket, currentRoomId]);
 
   const redo = useCallback(() => {
     if (historyIndexRef.current < historyRef.current.length - 1) {
@@ -477,16 +475,21 @@ export default function Whiteboard({ roomId = null }) {
       img.onload = () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0);
+        
+        // Sync with other users
+        if (socket && currentRoomId) {
+          socket.emit("canvas-sync", historyRef.current[newIndex]);
+        }
       };
       img.src = historyRef.current[newIndex];
     }
-  }, []);
+  }, [socket, currentRoomId]);
 
   return (
     <div className="flex flex-col h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <Header 
-        connectedUsers={connectedUsers} 
-        socket={socket} 
+      <Header
+        connectedUsers={connectedUsers}
+        socket={socket}
         roomId={currentRoomId}
         onCreateRoom={createNewRoom}
       />
@@ -505,7 +508,6 @@ export default function Whiteboard({ roomId = null }) {
           setShowHistory={setShowHistory}
           setShowSettings={setShowSettings}
           setShowShare={setShowShare}
-          handleImageUpload={handleImageUpload}
           resetCanvas={resetCanvas}
           handleClearCanvas={handleClearCanvas}
           saveCanvas={() =>
@@ -610,15 +612,39 @@ export default function Whiteboard({ roomId = null }) {
       />
 
       {/* Debug info */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="fixed bottom-4 left-4 bg-black text-white p-2 rounded text-xs space-y-2">
-          <div>Room ID: {currentRoomId || 'null'} | Show Share: {showShare.toString()}</div>
-          <button 
-            onClick={() => setShowShare(!showShare)}
-            className="bg-blue-500 text-white px-2 py-1 rounded text-xs"
-          >
-            Toggle Share Panel
-          </button>
+      {process.env.NODE_ENV === "development" && (
+        <div
+          className="fixed bottom-10 left-4 bg-black text-white p-2 rounded text-xs"
+          style={{ zIndex: 10000 }}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="font-semibold">Debug Panel</span>
+            <button
+              onClick={() => setShowDebugPanel(!showDebugPanel)}
+              className="text-white hover:text-gray-300 text-sm"
+            >
+              {showDebugPanel ? "−" : "+"}
+            </button>
+          </div>
+
+          {showDebugPanel && (
+            <div className="space-y-2">
+              <div>
+                Room ID: {currentRoomId || "null"} | Show Share:{" "}
+                {showShare.toString()}
+              </div>
+              <div>
+                Socket Connected: {socket?.connected?.toString() || "null"}
+              </div>
+              <div>Header Button Visible: {(!currentRoomId).toString()}</div>
+              <button
+                onClick={() => setShowShare(!showShare)}
+                className="bg-blue-500 text-white px-2 py-1 rounded text-xs"
+              >
+                Toggle Share Panel
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
