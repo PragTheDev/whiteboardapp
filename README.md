@@ -1,36 +1,86 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Collaborative Whiteboard
+
+A real-time collaborative whiteboard application built with Next.js and Socket.io. Draw, share, and create together in private rooms with instant synchronization across all connected users.
+
+## Features
+
+✨ **Real-time Collaboration** - Multiple users can draw simultaneously with instant synchronization on local environment
+🎨 **Drawing Tools** - Pen, eraser, shapes (rectangle, circle, line) with customizable brush sizes  
+🎯 **Color Palette** - Multiple colors with easy selection  
+🏠 **Private Rooms** - Create private rooms with shareable links  
+⚙️ **Canvas Settings** - Customizable background colors and grid overlay  
+📱 **Responsive Design** - Works on desktop and mobile devices  
+🔄 **Auto-sync** - Canvas state automatically saves and syncs with room members
+
+## Tech Stack
+
+- **Frontend**: Next.js 15, React 19, Tailwind CSS
+- **Backend**: Node.js, Socket.io
+- **Icons**: Lucide React
+- **Styling**: Custom CSS animations and gradients
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+
+- npm or yarn
+
+### Installation
+
+1. Clone the repository
+
+```bash
+git clone https://github.com/PragTheDev/whiteboardapp.git
+cd whiteboardapp
+```
+
+2. Install dependencies
+
+```bash
+npm install
+```
+
+3. Run the development server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+4. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+## Usage
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Create a Room**: Click "Create Room" to start a new collaborative session
+2. **Share the Link**: Copy the room URL to invite others to collaborate
+3. **Start Drawing**: Use the toolbar to select tools, colors, and brush sizes
+4. **Collaborate**: All changes are instantly synchronized with other users in the room
 
-## Learn More
+## Scripts
 
-To learn more about Next.js, take a look at the following resources:
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm start` - Start production server
+- `npm run lint` - Run ESLint
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Room Features
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Private by Default**: Each room is private with a unique ID
+- **Real-time Sync**: Drawing, undo/redo, and canvas changes sync instantly
+- **User Count**: See how many users are currently in the room
+- **Persistent Canvas**: Canvas state is saved and restored when users join
 
-## Deploy on Vercel
+=
+## License
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+This project is open source and available under the [MIT License](LICENSE).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Acknowledgments
+
+- Built with [Next.js](https://nextjs.org/)
+- Real-time functionality powered by [Socket.io](https://socket.io/)
+- Icons by [Lucide](https://lucide.dev/)
+- Styled with [Tailwind CSS](https://tailwindcss.com/)
+
+
+
