@@ -82,7 +82,7 @@ export default function Whiteboard({ roomId = null }) {
       setCurrentRoomId(joinedRoomId);
     });
 
-    // Handle canvas restoration
+    // Handle canvas restoration (including undo/redo)
     newSocket.on("canvas-restored", (canvasData) => {
       if (canvasData && canvasRef.current) {
         const canvas = canvasRef.current;
@@ -273,12 +273,15 @@ export default function Whiteboard({ roomId = null }) {
   // Save initial canvas state
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (canvas && history.length === 0) {
+    if (canvas && isCanvasReady && socket && currentRoomId && history.length === 0) {
       const imageData = canvas.toDataURL();
       setHistory([imageData]);
       setHistoryIndex(0);
+      // Also save to server
+      socket.emit("save-canvas-state", imageData);
+      console.log("Saved initial canvas state");
     }
-  }, []);
+  }, [isCanvasReady, socket, currentRoomId, history.length]);
 
   const startDrawing = (e) => {
     e.preventDefault();
@@ -446,42 +449,14 @@ export default function Whiteboard({ roomId = null }) {
   );
 
   const undo = useCallback(() => {
-    if (historyIndexRef.current > 0) {
-      const newIndex = historyIndexRef.current - 1;
-      setHistoryIndex(newIndex);
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext("2d");
-      const img = new Image();
-      img.onload = () => {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0);
-        
-        // Sync with other users
-        if (socket && currentRoomId) {
-          socket.emit("canvas-sync", historyRef.current[newIndex]);
-        }
-      };
-      img.src = historyRef.current[newIndex];
+    if (socket && currentRoomId) {
+      socket.emit("undo-request");
     }
   }, [socket, currentRoomId]);
 
   const redo = useCallback(() => {
-    if (historyIndexRef.current < historyRef.current.length - 1) {
-      const newIndex = historyIndexRef.current + 1;
-      setHistoryIndex(newIndex);
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext("2d");
-      const img = new Image();
-      img.onload = () => {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0);
-        
-        // Sync with other users
-        if (socket && currentRoomId) {
-          socket.emit("canvas-sync", historyRef.current[newIndex]);
-        }
-      };
-      img.src = historyRef.current[newIndex];
+    if (socket && currentRoomId) {
+      socket.emit("redo-request");
     }
   }, [socket, currentRoomId]);
 

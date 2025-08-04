@@ -10,8 +10,8 @@ const port = 3000;
 const app = next({ dev, hostname, port });
 const handler = app.getRequestHandler();
 
-// Store room data
-const rooms = new Map(); // roomId -> { users: Set, canvasData: string }
+// Store room data with shared history
+const rooms = new Map(); // roomId -> { users: Set, canvasData: string, history: Array, historyIndex: number }
 
 // Generate unique room ID
 function generateRoomId() {
@@ -46,7 +46,12 @@ app.prepare().then(() => {
 
       // Initialize room if it doesn't exist
       if (!rooms.has(roomId)) {
-        rooms.set(roomId, { users: new Set(), canvasData: null });
+        rooms.set(roomId, {
+          users: new Set(),
+          canvasData: null,
+          history: [],
+          historyIndex: -1,
+        });
       }
 
       const room = rooms.get(roomId);
@@ -87,24 +92,51 @@ app.prepare().then(() => {
       }
     });
 
-    // Handle canvas state save
+    // Handle canvas state save with history management
     socket.on("save-canvas-state", (canvasData) => {
       if (socket.roomId) {
         const room = rooms.get(socket.roomId);
         if (room) {
           room.canvasData = canvasData;
+          // Add to history when new canvas state is saved
+          room.history = room.history.slice(0, room.historyIndex + 1);
+          room.history.push(canvasData);
+          room.historyIndex = room.history.length - 1;
+          console.log(`Canvas state saved: room ${socket.roomId}, historyIndex: ${room.historyIndex}, history length: ${room.history.length}`);
         }
       }
     });
 
-    // Handle canvas sync (for undo/redo operations)
-    socket.on("canvas-sync", (canvasData) => {
+    // Handle undo request
+    socket.on("undo-request", () => {
       if (socket.roomId) {
         const room = rooms.get(socket.roomId);
-        if (room) {
+        if (room && room.historyIndex > 0) {
+          room.historyIndex--;
+          const canvasData = room.history[room.historyIndex];
           room.canvasData = canvasData;
-          // Broadcast to all other users in the room
-          socket.to(socket.roomId).emit("canvas-synced", canvasData);
+          console.log(`Undo: room ${socket.roomId}, historyIndex: ${room.historyIndex}, history length: ${room.history.length}`);
+          // Broadcast to all users in the room (including the sender)
+          io.to(socket.roomId).emit("canvas-restored", canvasData);
+        } else {
+          console.log(`Undo failed: room ${socket.roomId}, historyIndex: ${room?.historyIndex}, history length: ${room?.history?.length}`);
+        }
+      }
+    });
+
+    // Handle redo request
+    socket.on("redo-request", () => {
+      if (socket.roomId) {
+        const room = rooms.get(socket.roomId);
+        if (room && room.historyIndex < room.history.length - 1) {
+          room.historyIndex++;
+          const canvasData = room.history[room.historyIndex];
+          room.canvasData = canvasData;
+          console.log(`Redo: room ${socket.roomId}, historyIndex: ${room.historyIndex}, history length: ${room.history.length}`);
+          // Broadcast to all users in the room (including the sender)
+          io.to(socket.roomId).emit("canvas-restored", canvasData);
+        } else {
+          console.log(`Redo failed: room ${socket.roomId}, historyIndex: ${room?.historyIndex}, history length: ${room?.history?.length}`);
         }
       }
     });
