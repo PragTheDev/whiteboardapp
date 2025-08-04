@@ -200,7 +200,7 @@
 }
 
 .brand-logo-shadow {
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .status-badge {
@@ -228,7 +228,7 @@
 }
 
 .connection-pulse {
-  animation: pulse-glow 2s infinite;
+  animation: pulse-glow 3s infinite;
 }
 
 /* Brand text gradient animation */

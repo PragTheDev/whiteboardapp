@@ -8,7 +8,7 @@ export default function Header({
 }) {
   return (
     <header className="bg-white/95 backdrop-blur-xl border-b border-gray-200/50 shadow-lg sticky top-0 z-50">
-      <div className="px-6 py-4">
+      <div className="px-5 py-4">
         <div className="flex items-center justify-between">
           {/* Brand Section */}
           <div className="flex items-center gap-4">
@@ -28,7 +28,7 @@ export default function Header({
             </div>
           </div>
 
-          {/* Right Section - Status & Actions */}
+          {/* Right Section - Status & Actions & more */}
           <div className="flex items-center gap-4">
             {/* Create Room Button */}
             {!roomId && (
@@ -63,6 +63,7 @@ export default function Header({
                     Disconnected
                   </span>
                 </div>
+
               )}
 
               {/* Users Online */}
