@@ -55,6 +55,8 @@ export default function Whiteboard({ roomId = null }) {
   const [actionHistory, setActionHistory] = useState([]);
   const [currentRoomId, setCurrentRoomId] = useState(roomId);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 });
+  const [showEraserCursor, setShowEraserCursor] = useState(false);
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -84,6 +86,20 @@ export default function Whiteboard({ roomId = null }) {
 
     // Handle canvas restoration (including undo/redo)
     newSocket.on("canvas-restored", (canvasData) => {
+      if (canvasData && canvasRef.current) {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext("2d");
+        const img = new Image();
+        img.onload = () => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0);
+        };
+        img.src = canvasData;
+      }
+    });
+
+    // Handle canvas updates from other users (including their undo/redo)
+    newSocket.on("canvas-updated", (canvasData) => {
       if (canvasData && canvasRef.current) {
         const canvas = canvasRef.current;
         const ctx = canvas.getContext("2d");
@@ -128,9 +144,10 @@ export default function Whiteboard({ roomId = null }) {
         const imageData = canvas.toDataURL();
         const timestamp = new Date();
 
-        // Save canvas state to server for room persistence
+        // Save canvas state to server for room persistence and broadcast to other users
         if (socket && currentRoomId) {
           socket.emit("save-canvas-state", imageData);
+          socket.emit("canvas-update", imageData);
         }
 
         const historyEntry = {
@@ -273,7 +290,13 @@ export default function Whiteboard({ roomId = null }) {
   // Save initial canvas state
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (canvas && isCanvasReady && socket && currentRoomId && history.length === 0) {
+    if (
+      canvas &&
+      isCanvasReady &&
+      socket &&
+      currentRoomId &&
+      history.length === 0
+    ) {
       const imageData = canvas.toDataURL();
       setHistory([imageData]);
       setHistoryIndex(0);
@@ -300,8 +323,14 @@ export default function Whiteboard({ roomId = null }) {
 
   const draw = (e) => {
     e.preventDefault();
-    if (!isDrawing) return;
     const pos = getMousePos(e, canvasRef.current);
+
+    // Update cursor position for eraser
+    if (tool === "eraser") {
+      setCursorPos(pos);
+    }
+
+    if (!isDrawing) return;
 
     if (tool === "pen" || tool === "eraser") {
       const drawingData = {
@@ -449,14 +478,42 @@ export default function Whiteboard({ roomId = null }) {
   );
 
   const undo = useCallback(() => {
-    if (socket && currentRoomId) {
-      socket.emit("undo-request");
+    if (historyIndexRef.current > 0) {
+      const newIndex = historyIndexRef.current - 1;
+      setHistoryIndex(newIndex);
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext("2d");
+      const img = new Image();
+      img.onload = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+
+        // Simply broadcast the new canvas state to other users
+        if (socket && currentRoomId) {
+          socket.emit("canvas-update", historyRef.current[newIndex]);
+        }
+      };
+      img.src = historyRef.current[newIndex];
     }
   }, [socket, currentRoomId]);
 
   const redo = useCallback(() => {
-    if (socket && currentRoomId) {
-      socket.emit("redo-request");
+    if (historyIndexRef.current < historyRef.current.length - 1) {
+      const newIndex = historyIndexRef.current + 1;
+      setHistoryIndex(newIndex);
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext("2d");
+      const img = new Image();
+      img.onload = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+
+        // Simply broadcast the new canvas state to other users
+        if (socket && currentRoomId) {
+          socket.emit("canvas-update", historyRef.current[newIndex]);
+        }
+      };
+      img.src = historyRef.current[newIndex];
     }
   }, [socket, currentRoomId]);
 
@@ -522,13 +579,21 @@ export default function Whiteboard({ roomId = null }) {
               tool === "pen"
                 ? "cursor-crosshair"
                 : tool === "eraser"
-                ? "cursor-cell"
+                ? "cursor-none"
                 : "cursor-crosshair"
             } ${!isCanvasReady ? "opacity-0" : "opacity-100"}`}
             onMouseDown={startDrawing}
             onMouseMove={draw}
             onMouseUp={stopDrawing}
+            onMouseEnter={(e) => {
+              if (tool === "eraser") {
+                setShowEraserCursor(true);
+                const pos = getMousePos(e, canvasRef.current);
+                setCursorPos(pos);
+              }
+            }}
             onMouseLeave={(e) => {
+              setShowEraserCursor(false);
               const previewCanvas = previewCanvasRef.current;
               if (previewCanvas && startPos) {
                 const previewCtx = previewCanvas.getContext("2d");
@@ -551,6 +616,20 @@ export default function Whiteboard({ roomId = null }) {
             className="absolute top-0 left-0 w-full h-full pointer-events-none preview-canvas"
             style={{ zIndex: 2 }}
           />
+
+          {/* Eraser cursor */}
+          {tool === "eraser" && showEraserCursor && (
+            <div
+              className="absolute pointer-events-none border-2 border-red-500 rounded-full bg-red-100 bg-opacity-30"
+              style={{
+                left: cursorPos.x - (brushSize * 2) / 2,
+                top: cursorPos.y - (brushSize * 2) / 2,
+                width: brushSize * 2,
+                height: brushSize * 2,
+                zIndex: 3,
+              }}
+            />
+          )}
 
           <CanvasOverlay
             tool={tool}
