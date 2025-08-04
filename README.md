@@ -1,6 +1,11 @@
 # Collaborative Whiteboard
 
 A real-time collaborative whiteboard application built with Next.js and Socket.io. Draw, share, and create together in private rooms with instant synchronization across all connected users.
+IMPORTANT: Currently the app doesn't work with real time collaboration in deployment. Currently, it only supports real time collaboration in your local development server.
+
+Video Demo: [Demo](https://drive.google.com/file/d/1rHU3FKEEheYq-v_Oh-OopAaOZVcKxauV/view?usp=sharing)
+
+[ScreenShot](whiteboard.png)
 
 ## Features
 
