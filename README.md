@@ -5,7 +5,7 @@ IMPORTANT: Currently the app doesn't work with real time collaboration in deploy
 
 Video Demo: [Demo](https://drive.google.com/file/d/1rHU3FKEEheYq-v_Oh-OopAaOZVcKxauV/view?usp=sharing)
 
-[ScreenShot](whiteboard.png)
+![ScreenShot](whiteboard.png)
 
 ## Features
 
