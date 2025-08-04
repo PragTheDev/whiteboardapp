@@ -10,6 +10,7 @@ import {
   RotateCcw,
   Trash2,
   Save,
+  Share2,
 } from "lucide-react";
 import { TOOLS } from "./constants";
 
@@ -25,6 +26,7 @@ export default function Toolbar({
   setIsGridVisible,
   setShowHistory,
   setShowSettings,
+  setShowShare,
   handleImageUpload,
   resetCanvas,
   handleClearCanvas,
@@ -107,6 +109,23 @@ export default function Toolbar({
                 <EyeOff className="w-4 h-4" />
               )}
               <span className="hidden sm:inline">Grid</span>
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                console.log("Share button clicked");
+                setShowShare((prev) => {
+                  console.log("Previous showShare:", prev);
+                  return !prev;
+                });
+              }}
+              className="flex items-center gap-2 hover:bg-white hover:shadow-sm transition-all duration-200"
+              title="Share Whiteboard"
+            >
+              <Share2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Share</span>
             </Button>
 
             <Button

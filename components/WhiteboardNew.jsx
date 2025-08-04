@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { io } from "socket.io-client";
 import {
   DEFAULT_BRUSH_SIZE,
@@ -21,11 +22,13 @@ import Toolbar from "./whiteboard/Toolbar";
 import ColorPalette from "./whiteboard/ColorPalette";
 import SettingsPanel from "./whiteboard/SettingsPanel";
 import HistoryPanel from "./whiteboard/HistoryPanel";
+import SharePanel from "./whiteboard/SharePanel";
 import CanvasOverlay from "./whiteboard/CanvasOverlay";
 import MobileControls from "./whiteboard/MobileControls";
 import Footer from "./whiteboard/Footer";
 
-export default function Whiteboard() {
+export default function Whiteboard({ roomId = null }) {
+  const router = useRouter();
   const canvasRef = useRef(null);
   const historyRef = useRef([]);
   const historyIndexRef = useRef(-1);
@@ -49,7 +52,9 @@ export default function Whiteboard() {
   );
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showShare, setShowShare] = useState(false);
   const [actionHistory, setActionHistory] = useState([]);
+  const [currentRoomId, setCurrentRoomId] = useState(roomId);
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -57,10 +62,37 @@ export default function Whiteboard() {
     historyIndexRef.current = historyIndex;
   }, [history, historyIndex]);
 
-  // Socket connection
+  // Socket connection and room handling
   useEffect(() => {
     const newSocket = io();
     setSocket(newSocket);
+
+    // Handle room creation
+    newSocket.on("room-created", (newRoomId) => {
+      console.log("Room created:", newRoomId);
+      setCurrentRoomId(newRoomId);
+      router.push(`/room/${newRoomId}`);
+    });
+
+    // Handle room joining
+    newSocket.on("room-joined", (joinedRoomId) => {
+      console.log("Room joined:", joinedRoomId);
+      setCurrentRoomId(joinedRoomId);
+    });
+
+    // Handle canvas restoration
+    newSocket.on("canvas-restored", (canvasData) => {
+      if (canvasData && canvasRef.current) {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext("2d");
+        const img = new Image();
+        img.onload = () => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0);
+        };
+        img.src = canvasData;
+      }
+    });
 
     newSocket.on("drawing", (data) => {
       if (data.type === "path") {
@@ -78,39 +110,52 @@ export default function Whiteboard() {
       setConnectedUsers(count);
     });
 
+    // Join room when socket connects
+    newSocket.on("connect", () => {
+      newSocket.emit("join-room", roomId);
+    });
+
     return () => newSocket.close();
-  }, []);
+  }, [roomId]);
 
-  // Save canvas state for undo/redo
-  const saveCanvasState = useCallback((actionType = "draw", details = {}) => {
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const imageData = canvas.toDataURL();
-      const timestamp = new Date();
+  // Save canvas state for undo/redo and emit to server
+  const saveCanvasState = useCallback(
+    (actionType = "draw", details = {}) => {
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const imageData = canvas.toDataURL();
+        const timestamp = new Date();
 
-      const historyEntry = {
-        id: Date.now() + Math.random(),
-        type: actionType,
-        timestamp: timestamp,
-        details: details,
-        imageData: imageData,
-      };
+        // Save canvas state to server for room persistence
+        if (socket && currentRoomId) {
+          socket.emit("save-canvas-state", imageData);
+        }
 
-      setHistory((prev) => {
-        const newHistory = prev.slice(0, historyIndexRef.current + 1);
-        newHistory.push(imageData);
-        return newHistory;
-      });
+        const historyEntry = {
+          id: Date.now() + Math.random(),
+          type: actionType,
+          timestamp: timestamp,
+          details: details,
+          imageData: imageData,
+        };
 
-      setActionHistory((prev) => {
-        const newActionHistory = prev.slice(0, historyIndexRef.current + 1);
-        newActionHistory.push(historyEntry);
-        return newActionHistory;
-      });
+        setHistory((prev) => {
+          const newHistory = prev.slice(0, historyIndexRef.current + 1);
+          newHistory.push(imageData);
+          return newHistory;
+        });
 
-      setHistoryIndex((prev) => prev + 1);
-    }
-  }, []);
+        setActionHistory((prev) => {
+          const newActionHistory = prev.slice(0, historyIndexRef.current + 1);
+          newActionHistory.push(historyEntry);
+          return newActionHistory;
+        });
+
+        setHistoryIndex((prev) => prev + 1);
+      }
+    },
+    [socket, currentRoomId]
+  );
 
   // Update canvas background when changed
   useEffect(() => {
@@ -339,6 +384,15 @@ export default function Whiteboard() {
     saveCanvasState("reset", { background: canvasBackground });
   };
 
+  const createNewRoom = () => {
+    console.log("Creating new room...");
+    if (socket) {
+      // Request creation of a new room by passing null as roomId
+      socket.emit("join-room", null);
+      console.log("Emitted join-room with null");
+    }
+  };
+
   const handleClearCanvas = () => {
     clearCanvas(canvasRef.current, canvasBackground, isGridVisible);
     if (socket) {
@@ -430,7 +484,12 @@ export default function Whiteboard() {
 
   return (
     <div className="flex flex-col h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <Header connectedUsers={connectedUsers} socket={socket} />
+      <Header 
+        connectedUsers={connectedUsers} 
+        socket={socket} 
+        roomId={currentRoomId}
+        onCreateRoom={createNewRoom}
+      />
 
       <div className="px-6 py-4">
         <Toolbar
@@ -445,6 +504,7 @@ export default function Whiteboard() {
           setIsGridVisible={setIsGridVisible}
           setShowHistory={setShowHistory}
           setShowSettings={setShowSettings}
+          setShowShare={setShowShare}
           handleImageUpload={handleImageUpload}
           resetCanvas={resetCanvas}
           handleClearCanvas={handleClearCanvas}
@@ -540,6 +600,27 @@ export default function Whiteboard() {
         actionHistory={actionHistory}
         restoreToHistoryPoint={restoreToHistoryPoint}
       />
+
+      <SharePanel
+        roomId={currentRoomId}
+        connectedUsers={connectedUsers}
+        onCreateRoom={createNewRoom}
+        showShare={showShare}
+        setShowShare={setShowShare}
+      />
+
+      {/* Debug info */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="fixed bottom-4 left-4 bg-black text-white p-2 rounded text-xs space-y-2">
+          <div>Room ID: {currentRoomId || 'null'} | Show Share: {showShare.toString()}</div>
+          <button 
+            onClick={() => setShowShare(!showShare)}
+            className="bg-blue-500 text-white px-2 py-1 rounded text-xs"
+          >
+            Toggle Share Panel
+          </button>
+        </div>
+      )}
     </div>
   );
 }

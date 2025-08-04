@@ -1,6 +1,7 @@
 const { createServer } = require("http");
 const { Server } = require("socket.io");
 const next = require("next");
+const crypto = require("crypto");
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = "localhost";
@@ -9,7 +10,13 @@ const port = 3000;
 const app = next({ dev, hostname, port });
 const handler = app.getRequestHandler();
 
-let connectedUsers = 0;
+// Store room data
+const rooms = new Map(); // roomId -> { users: Set, canvasData: string }
+
+// Generate unique room ID
+function generateRoomId() {
+  return crypto.randomBytes(16).toString("hex");
+}
 
 app.prepare().then(() => {
   const httpServer = createServer(handler);
@@ -22,29 +29,89 @@ app.prepare().then(() => {
   });
 
   io.on("connection", (socket) => {
-    connectedUsers++;
-    console.log(`User connected: ${socket.id}. Total users: ${connectedUsers}`);
+    console.log(`User connected: ${socket.id}`);
 
-    // Send user count to all clients
-    io.emit("user-count", connectedUsers);
+    // Handle joining a room
+    socket.on("join-room", (roomId) => {
+      if (!roomId) {
+        // Create a new private room
+        roomId = generateRoomId();
+        socket.emit("room-created", roomId);
+      }
+
+      // Initialize room if it doesn't exist
+      if (!rooms.has(roomId)) {
+        rooms.set(roomId, { users: new Set(), canvasData: null });
+      }
+
+      const room = rooms.get(roomId);
+      room.users.add(socket.id);
+      socket.join(roomId);
+      socket.roomId = roomId;
+
+      console.log(
+        `User ${socket.id} joined room: ${roomId}. Room users: ${room.users.size}`
+      );
+
+      // Send user count to room
+      io.to(roomId).emit("user-count", room.users.size);
+
+      // Send existing canvas data to new user if available
+      if (room.canvasData) {
+        socket.emit("canvas-restored", room.canvasData);
+      }
+
+      socket.emit("room-joined", roomId);
+    });
 
     // Handle drawing events (both paths and shapes)
     socket.on("drawing", (data) => {
-      socket.broadcast.emit("drawing", data);
+      if (socket.roomId) {
+        socket.to(socket.roomId).emit("drawing", data);
+      }
     });
 
     // Handle clear canvas
     socket.on("clear-canvas", () => {
-      socket.broadcast.emit("clear-canvas");
+      if (socket.roomId) {
+        const room = rooms.get(socket.roomId);
+        if (room) {
+          room.canvasData = null; // Clear stored canvas data
+        }
+        socket.to(socket.roomId).emit("clear-canvas");
+      }
+    });
+
+    // Handle canvas state save
+    socket.on("save-canvas-state", (canvasData) => {
+      if (socket.roomId) {
+        const room = rooms.get(socket.roomId);
+        if (room) {
+          room.canvasData = canvasData;
+        }
+      }
     });
 
     // Handle disconnect
     socket.on("disconnect", () => {
-      connectedUsers--;
-      console.log(
-        `User disconnected: ${socket.id}. Total users: ${connectedUsers}`
-      );
-      io.emit("user-count", connectedUsers);
+      if (socket.roomId) {
+        const room = rooms.get(socket.roomId);
+        if (room) {
+          room.users.delete(socket.id);
+          console.log(
+            `User ${socket.id} left room: ${socket.roomId}. Room users: ${room.users.size}`
+          );
+
+          // Send updated user count to room
+          io.to(socket.roomId).emit("user-count", room.users.size);
+
+          // Clean up empty rooms
+          if (room.users.size === 0) {
+            rooms.delete(socket.roomId);
+            console.log(`Room ${socket.roomId} deleted (empty)`);
+          }
+        }
+      }
     });
   });
 

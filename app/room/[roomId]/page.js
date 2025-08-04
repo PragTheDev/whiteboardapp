@@ -1,9 +1,9 @@
 import Whiteboard from "@/components/WhiteboardNew";
 
-export default function Home() {
+export default function RoomPage({ params }) {
   return (
     <div className="h-screen">
-      <Whiteboard roomId={null} />
+      <Whiteboard roomId={params.roomId} />
     </div>
   );
 }

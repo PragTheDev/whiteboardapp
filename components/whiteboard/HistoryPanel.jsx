@@ -17,7 +17,7 @@ export default function HistoryPanel({
   return (
     <div
       className="fixed top-32 right-6 bg-white rounded-xl shadow-xl border border-gray-200 p-4 w-80 max-h-96 overflow-y-auto"
-      style={{ zIndex: 9999 }}
+      style={{ zIndex: 1001 }}
     >
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-semibold text-gray-800 flex items-center gap-2">
